@@ -1,0 +1,4 @@
+0.1.0	The first hardware accelerated JPEG encoder/decoder library.
+	This makes use of Renesas's SH7722/3/4 SoC's JPU.
+	If JPEG files cannot be decoded, automatically falls back to
+	libjpeg.
