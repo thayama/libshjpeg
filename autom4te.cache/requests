@@ -99,6 +99,7 @@
                         'LT_SYS_MODULE_EXT' => 1,
                         'AC_DEFUN_ONCE' => 1,
                         '_LT_AC_LANG_GCJ' => 1,
+                        'LIBSHJPEG_VERSION' => 1,
                         'AC_LTDL_OBJDIR' => 1,
                         '_LT_PATH_TOOL_PREFIX' => 1,
                         'AC_LIBTOOL_RC' => 1,

@@ -3,11 +3,12 @@
 #
 lib_LTLIBRARIES = libshjpeg.la
 
-noinst_HEADERS = \
+include_HEADERS = \
 	shjpeg.h \
 	shjpeg_types.h 
 
 libshjpeg_la_LIBADD = $(LIBS)
+libshjpeg_la_LDFLAGS = -version-info $(LIBSHJPEG_VERSION)
 
 libshjpeg_la_SOURCES = \
 	shjpeg_common.c \
