@@ -1,6 +1,6 @@
-The first hardware accelerated JPEG encoder/decoder library.  This
-makes use of Renesas's SH7722/3/4 SoC's JPU.  If JPEG files cannot be
-decoded, automatically falls back to libjpeg.
+The hardware accelerated JPEG encoder/decoder library for SH Mobile.
+This makes use of Renesas's SH7722/3/4 SoC's JPU.  If JPEG files
+cannot be decoded, automatically falls back to libjpeg.
 
 Run 'autoreconf -vif' to create 'configure'.
 
