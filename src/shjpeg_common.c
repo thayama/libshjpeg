@@ -27,7 +27,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -86,7 +85,8 @@ uio_open_dev(shjpeg_context_t 	*context,
     /* search uio that has given name */
     while(n--) {
 	if (!found) {
-	    snprintf(path, MAXPATHLEN, "/sys/class/uio/%s/name", namelist[n]->d_name);
+	    snprintf(path, MAXPATHLEN, "/sys/class/uio/%s/name", 
+	    	     namelist[n]->d_name);
 	    if (uio_readfile(context, path, 4, uio_name) < 0) {
 		D_ERROR("libshjpeg: Skip %s", path);
 	    } else {
@@ -216,6 +216,8 @@ uio_init(shjpeg_context_t *context, shjpeg_internal_t *data)
     D_INFO("libshjpeg: uio#=%d, jpu_phys=%08lx(%08lx), jpeg_phys=%08lx(%08lx)",
 	   data->jpu_uio_num, data->jpu_phys, data->jpu_size,
 	   data->jpeg_phys, data->jpeg_size);
+    D_INFO("libshjpeg: uio#=%d, veu_phys=%08lx(%08lx)",
+	   data->veu_uio_num, data->veu_phys, data->veu_size);
 
     /* Map JPU registers and memory. */
     data->jpu_base = mmap(NULL, data->jpu_size,

@@ -52,6 +52,10 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 	{
 	    .fd     = data->jpu_uio_fd,
 	    .events = POLLIN,
+	},
+	{
+	    .fd	    = data->veu_uio_fd,
+	    .events = POLLIN,
 	}
     };
 
@@ -146,7 +150,8 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 	int done = 0;
 
 	// wait for IRQ.
-	ret = poll( fds, 1, 5000 );
+	fds[0].revents = fds[1].revents = 0;
+	ret = poll( fds, 2, 5000 );
 
 	// timeout or some error.
 	if (ret == 0) {
@@ -154,13 +159,14 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		    data->jpeg_end, data->jpeg_linebufs);
 	    D_ERROR("libshjpeg: TIMEOUT at %s - "
 		    "(JCSTS 0x%08x, JINTS 0x%08x(0x%08x), "
-		    "JCRST 0x%08x, JCCMD 0x%08x)",
+		    "JCRST 0x%08x, JCCMD 0x%08x, VSTAR 0x%08x)",
 		    __FUNCTION__,
 		    shjpeg_jpu_getreg32(data, JPU_JCSTS),
 		    shjpeg_jpu_getreg32(data, JPU_JINTS),
 		    shjpeg_jpu_getreg32(data, JPU_JINTE),
 		    shjpeg_jpu_getreg32(data, JPU_JCRST),
-		    shjpeg_jpu_getreg32(data, JPU_JCCMD));
+		    shjpeg_jpu_getreg32(data, JPU_JCCMD),
+		    shjpeg_veu_getreg32(data, VEU_VSTAR));
 	    errno = ETIMEDOUT;
 	    return -1;
 	}
@@ -325,18 +331,18 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 
 			data->veu_running = 1;
 
-			shjpeg_veu_setreg32(data, VEU_VDAYR,
+			shjpeg_veu_setreg32(data, VEU_VSAYR,
 					    (data->veu_linebuf) ?
 					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESYA2):
+								JPU_JIFDDYA2):
 					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESYA1));
-			shjpeg_veu_setreg32(data, VEU_VDACR,
+								JPU_JIFDDYA1));
+			shjpeg_veu_setreg32(data, VEU_VSACR,
 					    (data->veu_linebuf) ?
 					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESCA2):
+								JPU_JIFDDCA2):
 					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESCA1));
+								JPU_JIFDDCA1));
 			shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
 		    }
 		}

@@ -27,7 +27,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -224,9 +223,7 @@ encode_hw(shjpeg_internal_t	*data,
 	jpeg.sa_c = phys + pitch * height;
 	jpeg.sa_inc = pitch * 16;
 
-	shjpeg_veu_setreg32(data, VEU_VRFCR, 
-			    (((height << 12) / height) << 16) |
-			     ((width << 12) / width));
+	shjpeg_veu_setreg32(data, VEU_VRFCR, 0x00000000);
 	shjpeg_veu_setreg32(data, VEU_VRFSR, 
 			    (context->height << 16) | context->width);
 

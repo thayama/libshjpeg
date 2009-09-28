@@ -177,5 +177,6 @@
  */
 
 extern const char *jpu_reg_str[];
+extern const char *veu_reg_str[];
 
 #endif /* !__shjpu_regs_h__ */

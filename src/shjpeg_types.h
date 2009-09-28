@@ -43,12 +43,17 @@
  * mp  - multiplier for planes calculation (units of 1/2 plane)
  */
 
-#define SHJPEG_PIXELFORMAT(id, bpp, mul) \
-    ((((id)  & 0xffff) << 16) |	(((bpp) &   0xff) <<  8) | ((mul)  &   0xff))
+#define SHJPEG_PIXELFORMAT(id, pitch, bpp, mul)		\
+    ((((id) & 0xffff) << 24) | (((pitch) & 0xff) << 16) | (((bpp) &   0xff) <<  8) | \
+     ((mul)  &   0xff))
 
-#define SHJPEG_PF_BPP(format)		(((format) & 0x0000ff00) >> 8)
+#define SHJPEG_PF_PITCH_MULTIPLY(format) \
+    (((format) & 0x00ff0000) >> 16)
 
-#define SHJPEG_PLANE_MULTIPLY(format, height) \
+#define SHJPEG_PF_BPP(format) \
+    (((format) & 0x0000ff00) >> 8)
+
+#define SHJPEG_PF_PLANE_MULTIPLY(format, height) \
     (((format) & 0xff) * (height) / 2)
 
 /**
@@ -58,11 +63,11 @@
  */
 
 typedef enum {
-    SHJPEG_PF_RGB16 = SHJPEG_PIXELFORMAT(1, 16, 2),		/*!< RGB16 pixel format. */
-    SHJPEG_PF_RGB24 = SHJPEG_PIXELFORMAT(2, 24, 2),		/*!< RGB24 pixel format. */
-    SHJPEG_PF_RGB32 = SHJPEG_PIXELFORMAT(3, 32, 2),		/*!< RGB32 pixel format. */
-    SHJPEG_PF_NV12  = SHJPEG_PIXELFORMAT(4, 12, 3),		/*!< NV12 pixel format. */
-    SHJPEG_PF_NV16  = SHJPEG_PIXELFORMAT(5, 16, 4),		/*!< NV16 pixel format. */
+    SHJPEG_PF_RGB16 = SHJPEG_PIXELFORMAT(1, 2, 16, 2),		/*!< RGB16 pixel format. */
+    SHJPEG_PF_RGB24 = SHJPEG_PIXELFORMAT(2, 3, 24, 2),		/*!< RGB24 pixel format. */
+    SHJPEG_PF_RGB32 = SHJPEG_PIXELFORMAT(3, 4, 32, 2),		/*!< RGB32 pixel format. */
+    SHJPEG_PF_NV12  = SHJPEG_PIXELFORMAT(4, 1, 12, 3),		/*!< NV12 pixel format. */
+    SHJPEG_PF_NV16  = SHJPEG_PIXELFORMAT(5, 1, 16, 4),		/*!< NV16 pixel format. */
 } shjpeg_pixelformat;
 
 typedef struct shjpeg_stream_ops_struct shjpeg_sops;
@@ -136,6 +141,12 @@ struct shjpeg_context_struct {
 
     //! libshjpeg private data
     void	*internal_data;
+
+    //! Set to non-zero, if fallback to libjpeg is NOT desired.
+    int		 libjpeg_disabled;
+
+    //! libshjpeg set this to non-zero, if decoding falled back to libjpeg.
+    int		 libjpeg_used;
 
     //! libshjpeg private data
     int		 verbose;

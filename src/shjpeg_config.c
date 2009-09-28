@@ -85,3 +85,65 @@ const char *jpu_reg_str[] = {
     "JIFDDYA2",
     "JIFDDCA2", "-",
 };
+
+const char *veu_reg_str[] = {
+    "VESTR",		// 0x000
+    "-",
+    "-",
+    "-",
+
+    "VESWR",		// 0x010
+    "VESSR",
+    "VSAYR",
+    "VSACR",
+
+    "VBSSR",		// 0x020
+    "-",
+    "-",
+    "-",
+
+    "VEDWR",		// 0x030
+    "VDAYR",
+    "VDACR",
+    "-",
+
+    "-",		// 0x040
+    "-",
+    "-",
+    "-",
+
+    "VTRCR",		// 0x050
+    "VRFCR",
+    "VRFSR",
+    "VENHR",
+
+    "-",		// 0x060
+    "-",
+    "-",
+    "-",
+
+    "VFMCR",		// 0x070
+    "VVTCR",
+    "VHTCR",
+    "-",
+
+    "VAPCR",		// 0x080
+    "VECCR",
+    "-",
+    "-",
+
+    "VAFXR",		// 0x090
+    "VSWPR",
+    "-",
+    "-",
+
+    "VEIER",		// 0x0a0
+    "VEVTR",
+    "-",
+    "-",
+
+    "VSTAR",		// 0x0b0
+    "VBSRR",
+    "-",
+    "-"
+};

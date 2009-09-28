@@ -27,7 +27,6 @@
 #include <string.h>
 #include <stdarg.h>
 #include <fcntl.h>
-#include <poll.h>
 #include <dirent.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
@@ -227,9 +226,7 @@ decode_hw(shjpeg_internal_t	*data,
 	shjpeg_veu_setreg32( data, VEU_VDACR, phys + pitch * height );
 	shjpeg_veu_setreg32( data, VEU_VTRCR, vtrcr );
 	
-	shjpeg_veu_setreg32( data, VEU_VRFCR,
-			     (((context->height << 12) / height) << 16) |
-			     ((context->width  << 12) / width) );
+	shjpeg_veu_setreg32( data, VEU_VRFCR, 0x00000000 );
 	shjpeg_veu_setreg32( data, VEU_VRFSR, 
 			     (context->height << 16) | context->width );
 	
@@ -693,13 +690,29 @@ shjpeg_decode_run(shjpeg_context_t	*context,
     /* check if we got a large enough surface */
     if ((context->width  > width ) || 
 	(context->height > height) ||
-	((context->width * (SHJPEG_PF_BPP(format) >> 3)) > pitch)) {
+	((context->width * (SHJPEG_PF_PITCH_MULTIPLY(format))) > pitch) ||
+	(pitch & 0x7)) {
 	D_ERROR("libshjpeg: width, height or pitch doesn't fit.");
+	return -1;
     }
 
     /* if physical address is not given, use the default */
-    if (phys == SHJPEG_USE_DEFAULT_BUFFER)
+    if (phys == SHJPEG_USE_DEFAULT_BUFFER) {
+	/* first of all, check if the decoded image would fit */
+	int req_size = pitch * SHJPEG_PF_PLANE_MULTIPLY(format, height);
+	int max_size = data->jpeg_size - SHJPEG_JPU_SIZE;
+
+	if (req_size > max_size) {
+	    D_ERROR("libshjpeg: "
+		    "no memory to hold an image of %dx%d (%dbpp) = %d(%d)B.",
+		    context->width, context->height, SHJPEG_PF_BPP(format),
+		    req_size, max_size);
+	    errno = -ENOMEM;
+	    return -1;
+	}
+
 	phys = data->jpeg_data;
+    }
 
     context->jpeg_decomp.err = jpeg_std_error( &jerr.pub );
     jerr.pub.error_exit      = jpeglib_panic;
@@ -722,6 +735,9 @@ shjpeg_decode_run(shjpeg_context_t	*context,
 	return -1;
     }
 
+    // Reset libjpeg used flag to zero
+    context->libjpeg_used = 0;
+
     if (!context->mode444) {
 	if (context->sops->init)
 	    context->sops->init(context->private);
@@ -729,9 +745,9 @@ shjpeg_decode_run(shjpeg_context_t	*context,
 	ret = decode_hw(data, context, format, phys, width, height, pitch);
     }
 
-    if (ret) {
+    if ((!context->libjpeg_disabled) && (ret)) {
 	int fd;
-	int len = _PAGE_ALIGN(SHJPEG_PLANE_MULTIPLY(format, height) * pitch);
+	int len = _PAGE_ALIGN(SHJPEG_PF_PLANE_MULTIPLY(format, height) * pitch);
 
 	fd = open( "/dev/mem", O_RDWR | O_SYNC );
 	if (fd < 0) {
@@ -747,6 +763,10 @@ shjpeg_decode_run(shjpeg_context_t	*context,
 	}
 
 	ret = decode_sw(context, format, addr, width, height, pitch);
+
+	// set the flag to notify the use of libjpeg
+	if (!ret)
+    	    context->libjpeg_used = 1;
 
 	munmap(addr, len);
 	close(fd);

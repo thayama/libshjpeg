@@ -70,7 +70,7 @@ shjpeg_jpu_getreg32(shjpeg_internal_t  *data,
 		    u32		   	address)
 {
     D_ASSERT( address < data->jpu_size );
-    
+
     return *(volatile u32*)(data->jpu_base + address);
 }
 
@@ -106,6 +106,10 @@ shjpeg_veu_setreg32(shjpeg_internal_t	*data,
     D_ASSERT( address < data->veu_size );
     
     *(volatile u32*)(data->veu_base + address) = value;
+
+    D_INFO("%s: written %08x(%08x) at %s(%08x)",
+	   __FUNCTION__, value, shjpeg_veu_getreg32(data, address),
+	   veu_reg_str[address >> 2], address );
 }
 
 /* external function */
