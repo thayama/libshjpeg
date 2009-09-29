@@ -138,10 +138,11 @@ print_usage() {
 	    "- Default re-encoed JPEG filename is with '.out' as a suffix.\n"
 	    "\n"
 	    "Options:\n"
-	    "  -h, --help          this message.\n"
-	    "  -v, --verbose       verbose output.\n"
-	    "  -d, --dump [<ppm>]  dump intermediate image in ppm (default: test.ppm).\n"
-	    "  -n, --no-libjpeg    disable fallback to libjpeg.\n");
+	    "  -h, --help                this message.\n"
+	    "  -v, --verbose             libshjpeg verbose output.\n"
+	    "  -q, --quiet		 no messages from this program.\n"
+	    "  -d[<ppm], --dump[=<ppm>]  dump intermediate image in ppm (default: test.ppm).\n"
+	    "  -n, --no-libjpeg          disable fallback to libjpeg.\n");
 }
 
 int
@@ -159,6 +160,7 @@ main(int argc, char *argv[])
     int			   verbose = 0;
     int			   dump = 0;
     int			   disable_libjpeg = 0;
+    int			   quiet = 0;
 
     argv0 = argv[0];
 
@@ -168,12 +170,13 @@ main(int argc, char *argv[])
 	static struct option   long_options[] = {
 	    {"help", 0, 0, 'h'},
 	    {"verbose", 0, 0, 'v'},
+	    {"quiet", 0, 0, 'q'},
 	    {"dump", 2, 0, 'd'},
 	    {"no-libjpeg", 0, 0, 'n'},
 	    {0, 0, 0, 0}
 	};
 	
-	if ((c = getopt_long(argc, argv, "hvd::n",
+	if ((c = getopt_long(argc, argv, "hvd::nq",
 			     long_options, &option_index)) == -1)
 	    break;
 
@@ -196,6 +199,10 @@ main(int argc, char *argv[])
 	    disable_libjpeg = 1;
 	    break;
 
+	case 'q':
+	    quiet = 1;
+	    break;
+
 	default:
 	    fprintf(stderr, "unknown option 0%x.\n", c);
 	    print_usage();
@@ -210,8 +217,8 @@ main(int argc, char *argv[])
     }
 
     /* check option */
-    input = argv[++optind];
-    if (argv[++optind]) 
+    input = argv[optind++];
+    if (argv[optind]) 
 	output = argv[optind];
     else {
 	snprintf(filename, sizeof(filename), "%s.out", input);
@@ -219,9 +226,10 @@ main(int argc, char *argv[])
     }
 
     /* verbose */
-    if (verbose) {
+    if (!quiet) {
 	printf("Input file = %s\n", input);
 	printf("Output file = %s\n", output);
+	printf("Use libjpeg: %s\n", (disable_libjpeg) ? "no" : "yes");
     }
 
     /* open jpegfile */
@@ -231,28 +239,21 @@ main(int argc, char *argv[])
     }
 
     /* initialize - verbose mode */
-    if (verbose)
-	printf("shjpeg_init() - start\n");
     if ((context = shjpeg_init(verbose)) == NULL) {
 	fprintf(stderr, "shjpeg_init() failed\n");
 	return 1;
     }
-    if (verbose)
-	printf("shjpeg_init() - done ... context = %p\n", context);
 
     /* set callbacks to context */
     context->sops = &my_sops;
     context->private = (void*)&fd;
+    context->libjpeg_disabled = disable_libjpeg;
 
     /* init decoding */
-    if (verbose)
-	printf("shjpeg_decode_init() - start\n");
     if (shjpeg_decode_init(context) < 0) {
 	fprintf(stderr, "shjpeg_decode_init() failed\n");
 	return 1;
     }
-    if (verbose)
-	printf("shjpeg_decode_init() - done\n");
 
     if (verbose)
 	printf("%s: opened %dx%d image (4:%s)\n",
@@ -265,43 +266,29 @@ main(int argc, char *argv[])
     pitch  = (SHJPEG_PF_PITCH_MULTIPLY(format) * context->width + 7) & ~7;
 
     /* start decoding */
-    if (verbose)
-	printf("shjpeg_decode_run() - start\n");
     if (shjpeg_decode_run(context, format, SHJPEG_USE_DEFAULT_BUFFER,
 			  context->width, context->height, pitch) < 0) {
 	fprintf(stderr, "shjpeg_deocde_run() failed\n");
 	return 1;
     }
-    if (verbose)
-	printf("shjpeg_decode_run() - done (decoded by %s)\n",
+    if (!quiet)
+	printf("Decoded by: %s\n",
 	       context->libjpeg_used ? "libjpeg" : "JPU");
 
     /* shutdown decoder */
-    if (verbose)
-	printf("shjpeg_decode_shutdown() - start\n");
     shjpeg_decode_shutdown(context);
-    if (verbose)
-	printf("shjpeg_decode_shutdown() - done\n");
 
     /* get framebuffer information */
-    if (verbose)
-	printf("shjpeg_get_frame_buffer() - start\n");
     shjpeg_get_frame_buffer(context, &jpeg_phys, &jpeg_virt, &jpeg_size);
-    if (verbose) {
-	printf("shjpeg_get_frame_buffer() - done\n");
-	printf( "%s: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
-		argv[0], jpeg_phys, jpeg_virt, jpeg_size );
+    if (!quiet) {
+	printf( "JPU UIO mems: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
+		jpeg_phys, jpeg_virt, jpeg_size );
     }
 
     /* dump intermediate file */
     if (dump) {
-	if (verbose) {
-	    printf("dumping as ppm - "); 
-	    fflush(stdout);
-	}
 	// Use RGB24 format to dump image properly
 	write_ppm(dumpfn, jpeg_phys, pitch, context->width, context->height);
-	printf("done\n");
     }
 
     /* now prep to re-encode */
@@ -312,22 +299,17 @@ main(int argc, char *argv[])
     }
 
     /* start encoding */
-    if (verbose)
-	printf("shjpeg_encode() - start\n");
     if (shjpeg_encode(context, format, jpeg_phys, 
 		      context->width, context->height, pitch) < 0) {
 	fprintf(stderr, "%s: shjpeg_encode() failed.\n", argv[0]);
 	return 1;
     }
-    if (verbose)
-	printf("shjpeg_encode() - done\n");
     close(fd);
 
-    if (verbose)
-	printf("shjpeg_shutdown() - start\n"); 
     shjpeg_shutdown(context);
-    if (verbose)
-	printf("shjpeg_shutdown() - done\n");
+
+    if (!quiet)
+    	printf("done!\n");
 
     return 0;
 }

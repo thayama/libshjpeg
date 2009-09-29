@@ -57,12 +57,12 @@ typedef int64_t s64;
 
 #ifdef SHJPEG_DEBUG
 
-#  define D_BUG(s, x...)	fprintf( stderr, s "\n", ## x )
-#  define D_INFO(s, x...)	fprintf( stderr, s "\n", ## x )
+#  define D_BUG(s, x...)	{ if (context->verbose) fprintf( stderr, s "\n", ## x ); }
+#  define D_INFO(s, x...)	{ if (context->verbose) fprintf( stderr, s "\n", ## x ); }
 #  define D_ONCE(s, x...) \
     { static int once = 1; \
       if (once-- > 0) fprintf( stderr, s "\n", ## x ); } 
-#  define D_DEBUG_AT(d, s, x...)         fprintf( stderr, "%s - " s "\n", __FUNCTION__, ## x )
+#  define D_DEBUG_AT(d, s, x...)	if (context->verbose) fprintf( stderr, "libshjpeg: %s - " s "\n", __FUNCTION__, ## x )
 #  define D_ASSERT(exp)  assert(exp)
 #  define D_UNIMPLEMENTED()  \
     fprintf( stderr, "Unimplemented %s!\n", __FUNCTION__ )

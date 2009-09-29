@@ -289,6 +289,7 @@ shjpeg_init(int verbose)
     }
     memset((void*)context, 0, sizeof(shjpeg_context_t)); 
 
+    data.context = context;
     context->internal_data = &data;
     context->verbose = verbose;
 

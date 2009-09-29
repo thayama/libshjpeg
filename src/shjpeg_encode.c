@@ -118,6 +118,8 @@ encode_hw(shjpeg_internal_t	*data,
 	return -1;
     }
 
+    vtrcr |= (0x1) << 2;
+
     /* Calculate source base address. */
     //phys += rect->x + rect->y * pitch;
 
@@ -207,9 +209,11 @@ encode_hw(shjpeg_internal_t	*data,
 
 	/* FIXME: Setup VEU for conversion/scaling (from surface to line buffer). */
 	shjpeg_veu_setreg32(data, VEU_VESTR, 0x00000000);
+	while(shjpeg_veu_getreg32(data, VEU_VESTR))
+	    usleep(1);
 	shjpeg_veu_setreg32(data, VEU_VESWR, pitch);
 	shjpeg_veu_setreg32(data, VEU_VESSR, 
-			    (context->height << 16) | context->width);
+			    (SHJPEG_JPU_LINEBUFFER_HEIGHT << 16) | context->width);
 	shjpeg_veu_setreg32(data, VEU_VBSSR, 16);
 	shjpeg_veu_setreg32(data, VEU_VEDWR, SHJPEG_JPU_LINEBUFFER_PITCH);
 	shjpeg_veu_setreg32(data, VEU_VDAYR, data->jpeg_lb1);
@@ -225,7 +229,7 @@ encode_hw(shjpeg_internal_t	*data,
 
 	shjpeg_veu_setreg32(data, VEU_VRFCR, 0x00000000);
 	shjpeg_veu_setreg32(data, VEU_VRFSR, 
-			    (context->height << 16) | context->width);
+			    (SHJPEG_JPU_LINEBUFFER_HEIGHT << 16) | context->width);
 
 	shjpeg_veu_setreg32(data, VEU_VENHR, 0x00000000);
 	shjpeg_veu_setreg32(data, VEU_VFMCR, 0x00000000);

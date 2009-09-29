@@ -528,10 +528,12 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 	    jpeg->state    = SHJPEG_JPU_END;
 	    jpeg->buffers |= 1 << data->jpeg_buffer;
 	}
-	else if (encode)
+	else if (encode) {
 	    D_INFO( "libshjpeg: '-> LOADED (%d)", jpeg->buffers );
-	else
+	}
+	else {
 	    D_INFO( "libshjpeg: '-> RELOAD (%d)", jpeg->buffers );
+	}
     }
 
     return 0;

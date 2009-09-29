@@ -118,6 +118,8 @@ decode_hw(shjpeg_internal_t	*data,
 	return -1;
     }
 
+    vtrcr |= (0x1 << 2);
+
     /* Calculate destination base address. */
     // phys += rect->x + rect->y * pitch;
 

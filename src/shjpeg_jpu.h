@@ -79,6 +79,7 @@ shjpeg_jpu_setreg32(shjpeg_internal_t *data,
 		    u32		       address,
 		    u32		       value)
 {
+    shjpeg_context_t *context = data->context;
     D_ASSERT( address < data->jpu_size );
 
     *(volatile u32*)(data->jpu_base + address) = value;
@@ -103,6 +104,7 @@ shjpeg_veu_setreg32(shjpeg_internal_t	*data,
 		    u32			 address,
 		    u32			 value)
 {
+    shjpeg_context_t *context = data->context;
     D_ASSERT( address < data->veu_size );
     
     *(volatile u32*)(data->veu_base + address) = value;

@@ -73,6 +73,9 @@ typedef struct {
     int                  jpeg_line;
     int                  veu_linebuf;
     int                  veu_running;
+
+    /* internal data */
+    shjpeg_context_t    *context;
 } shjpeg_internal_t;
 
 /* page alignment */
