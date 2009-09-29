@@ -142,6 +142,7 @@ print_usage() {
 	    "  -v, --verbose             libshjpeg verbose output.\n"
 	    "  -q, --quiet		 no messages from this program.\n"
 	    "  -d[<ppm], --dump[=<ppm>]  dump intermediate image in ppm (default: test.ppm).\n"
+	    "  -p <phys>, --phys=<phys>  specify physical memory to use.\n"
 	    "  -n, --no-libjpeg          disable fallback to libjpeg.\n");
 }
 
@@ -151,6 +152,7 @@ main(int argc, char *argv[])
     int                    pitch;
     void                  *jpeg_virt;
     unsigned long          jpeg_phys;
+    unsigned long	   phys = SHJPEG_USE_DEFAULT_BUFFER;
     size_t                 jpeg_size;
     shjpeg_context_t	  *context;
     int			   fd;
@@ -172,11 +174,12 @@ main(int argc, char *argv[])
 	    {"verbose", 0, 0, 'v'},
 	    {"quiet", 0, 0, 'q'},
 	    {"dump", 2, 0, 'd'},
+	    {"phys", 1, 0, 'p'},
 	    {"no-libjpeg", 0, 0, 'n'},
 	    {0, 0, 0, 0}
 	};
 	
-	if ((c = getopt_long(argc, argv, "hvd::nq",
+	if ((c = getopt_long(argc, argv, "hvd::nqp:",
 			     long_options, &option_index)) == -1)
 	    break;
 
@@ -201,6 +204,10 @@ main(int argc, char *argv[])
 
 	case 'q':
 	    quiet = 1;
+	    break;
+
+	case 'p':
+	    phys = strtol(optarg, NULL, 0);
 	    break;
 
 	default:
@@ -229,6 +236,7 @@ main(int argc, char *argv[])
     if (!quiet) {
 	printf("Input file = %s\n", input);
 	printf("Output file = %s\n", output);
+	printf("Physical addr: 0x%08lx\n", phys);
 	printf("Use libjpeg: %s\n", (disable_libjpeg) ? "no" : "yes");
     }
 
@@ -266,7 +274,7 @@ main(int argc, char *argv[])
     pitch  = (SHJPEG_PF_PITCH_MULTIPLY(format) * context->width + 7) & ~7;
 
     /* start decoding */
-    if (shjpeg_decode_run(context, format, SHJPEG_USE_DEFAULT_BUFFER,
+    if (shjpeg_decode_run(context, format, phys,
 			  context->width, context->height, pitch) < 0) {
 	fprintf(stderr, "shjpeg_deocde_run() failed\n");
 	return 1;
@@ -279,10 +287,14 @@ main(int argc, char *argv[])
     shjpeg_decode_shutdown(context);
 
     /* get framebuffer information */
-    shjpeg_get_frame_buffer(context, &jpeg_phys, &jpeg_virt, &jpeg_size);
-    if (!quiet) {
-	printf( "JPU UIO mems: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
-		jpeg_phys, jpeg_virt, jpeg_size );
+    if (phys == SHJPEG_USE_DEFAULT_BUFFER) {
+	   shjpeg_get_frame_buffer(context, &jpeg_phys, &jpeg_virt, &jpeg_size);
+	   if (!quiet) {
+		printf("jpu uio: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
+			jpeg_phys, jpeg_virt, jpeg_size );
+	   }
+    } else {
+   	jpeg_phys = phys; 
     }
 
     /* dump intermediate file */
