@@ -124,7 +124,6 @@ int main(int argc, char *argv[])
     enum v4l2_buf_type type;
     struct v4l2_format fmt;
     unsigned int page_size = getpagesize();
-    char fn[128];
     shjpeg_context_t *ctx;
     sops_data_t data = { .data = NULL, .size = 0L };
 
@@ -211,7 +210,7 @@ int main(int argc, char *argv[])
 
 	/* debug */
 	fprintf(stderr,
-		"buffer %d: addr=%08lx/%08lx, size=%08x\n", 
+		"buffer %d: addr=%08x/%08lx, size=%08x\n", 
 		i, buffer.m.offset, buffers[i].start, buffer.length);
     }
 
@@ -253,7 +252,7 @@ int main(int argc, char *argv[])
 	// output buffered data
 	printf("\r\n\r\n--%s\r\n", MJPEG_BOUNDARY);
 	printf("Content-Type: image/jpeg\r\n");
-	printf("Content-length: %ld\r\n\r\n", data.offset);
+	printf("Content-length: %d\r\n\r\n", data.offset);
 	fwrite(data.data, data.size, 1, stdout);
 	printf("\r\n");
 

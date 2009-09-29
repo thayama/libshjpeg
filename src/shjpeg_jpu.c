@@ -176,219 +176,329 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 	    return -1;
 	}
 
-	if (!(fds[0].revents & POLLIN)) {
-	    D_ERROR("libshjpeg: no IRQ - poll() returned no events");
-	    errno = EIO;
-	    return -1;
-	}
-
-	/* read number of interrupts */
-	if (read(data->jpu_uio_fd, &val, sizeof(val)) != sizeof(val)) {
-	    D_ERROR("libshjpeg: no IRQ - read() failed");
-	    errno = -EIO;
-	    return -1;
-	}
-
-	/* sanity check */
-	D_INFO( "libshjpeg: IRQ counts = %d", val );
-	if ( val < 1 ) {
-	    D_ERROR( "libshjpeg: Invalid IRQ counts - %d!", val );
-	    return -1;
-	}
-
-	/* get JPU IRQ stats */
-	ints = shjpeg_jpu_getreg32(data, JPU_JINTS);
-	shjpeg_jpu_setreg32(data, JPU_JINTS, ~ints & JPU_JINTS_MASK);
-
-	if (ints & (JPU_JINTS_INS3_HEADER | JPU_JINTS_INS5_ERROR | 
-	     JPU_JINTS_INS6_DONE))
-	    shjpeg_jpu_setreg32(data, JPU_JCCMD, JPU_JCCMD_END);
-
-	D_INFO("libshjpeg: JPU interrupt 0x%08x(%08x) "
-	       "(veu_linebuf: %d, jpeg_linebuf: %d, "
-	       "jpeg_linebufs: %d, jpeg_line: %d, jpeg_buffers: %d)",
-		ints, shjpeg_jpu_getreg32(data, JPU_JINTS),
-	       data->veu_linebuf, data->jpeg_linebuf, data->jpeg_linebufs, 
-	       data->jpeg_line, data->jpeg_buffers );
-
-	if (ints) {
-	    /* Header */
-	    if (ints & JPU_JINTS_INS3_HEADER) {
-		D_INFO( "libshjpeg:      -> HEADER (%dx%d)",
-			shjpeg_jpu_getreg32(data, JPU_JIFDDHSZ),
-			shjpeg_jpu_getreg32(data, JPU_JIFDDVSZ));
+	if (fds[0].revents & POLLIN) {
+	    /* read number of interrupts */
+	    if (read(data->jpu_uio_fd, &val, sizeof(val)) != sizeof(val)) {
+		D_ERROR("libshjpeg: no IRQ - read() failed");
+		errno = EIO;
+		return -1;
 	    }
+	    
+	    /* sanity check */
+	    D_INFO( "libshjpeg: IRQ counts = %d", val );
+	    
+	    /* get JPU IRQ stats */
+	    ints = shjpeg_jpu_getreg32(data, JPU_JINTS);
+	    shjpeg_jpu_setreg32(data, JPU_JINTS, ~ints & JPU_JINTS_MASK);
+	    
+	    if (ints & (JPU_JINTS_INS3_HEADER | JPU_JINTS_INS5_ERROR | 
+			JPU_JINTS_INS6_DONE))
+		shjpeg_jpu_setreg32(data, JPU_JCCMD, JPU_JCCMD_END);
 
-	    /* Error */
-	    if (ints & JPU_JINTS_INS5_ERROR) {
-		data->jpeg_error = shjpeg_jpu_getreg32(data, JPU_JCDERR);
+	    D_INFO("libshjpeg: JPU interrupt 0x%08x(%08x) "
+		   "(veu_linebuf: %d, jpeg_linebuf: %d, "
+		   "jpeg_linebufs: %d, jpeg_line: %d, jpeg_buffers: %d)",
+		   ints, shjpeg_jpu_getreg32(data, JPU_JINTS),
+		   data->veu_linebuf, data->jpeg_linebuf, data->jpeg_linebufs, 
+		   data->jpeg_line, data->jpeg_buffers );
 
-		D_INFO("libshjpeg:      -> ERROR 0x%08x!", data->jpeg_error);
-		done = 1;
-	    }
-
-	    /* Done */
-	    if (ints & JPU_JINTS_INS6_DONE) {
-		data->jpeg_end = 1;
-		data->jpeg_linebufs = 0;
-
-		D_INFO( "	      -> DONE" );
-
-		done = 1;
-	    }
-
-	    /* Done */
-	    if (ints & JPU_JINTS_INS10_XFER_DONE) {
-		data->jpeg_end = 1;
-
-		D_INFO( "	      -> XFER DONE" );
-
-		done = 1;
-	    }
-
-	    /* Line buffer ready? FIXME: encoding */
-	    if (ints & (JPU_JINTS_INS11_LINEBUF0 | JPU_JINTS_INS12_LINEBUF1)) {
-		D_INFO("	      -> LINEBUF %d DONE",
-		       data->jpeg_linebuf );
-
-		if (data->jpeg_encode) {
-		    data->jpeg_linebufs &= ~(1 << data->jpeg_linebuf);
-
-		    data->jpeg_linebuf = data->jpeg_linebuf ? 0 : 1;
-
-		    data->jpeg_reading_line = 0;
-
-		    if (data->jpeg_linebufs) {
-			data->jpeg_reading_line = 1; /* should still be one */
-
-			if (!data->jpeg_end)  {
-			    // JPU_JCCMD = jpeg_linebuf ? JCCMD_LCMD2 : JCCMD_LCMD1;
-			    shjpeg_jpu_setreg32(data, JPU_JCCMD,
-						JPU_JCCMD_LCMD2 | 
-						JPU_JCCMD_LCMD1 );
-			}
-		    }
-
-		    data->jpeg_line += 16;
-
-		    if (convert && !data->veu_running && !data->jpeg_end) {
-			u32 vdayr = shjpeg_veu_getreg32(data, VEU_VDAYR);
-			u32 vdacr = shjpeg_veu_getreg32(data, VEU_VDACR);
-
-			D_INFO( "		-> CONVERT %d", 
-				data->veu_linebuf );
-			data->veu_running = 1;
-
-			// VEU_VSAYR = shared->sa_y;
-			// VEU_VSACR = shared->sa_c;
-
-			shjpeg_veu_setreg32(data, VEU_VDAYR,
-					    (data->veu_linebuf) ?
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESYA2):
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESYA1));
-			shjpeg_veu_setreg32(data, VEU_VDACR,
-					    (data->veu_linebuf) ?
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESCA2):
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFESCA1));
-			shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
-
-			D_INFO( "		-> SWAP, "
-				"VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)",
-				shjpeg_veu_getreg32( data, VEU_VSAYR ), vdayr,
-				shjpeg_veu_getreg32( data, VEU_VDAYR ), vdacr,
-				shjpeg_veu_getreg32( data, VEU_VDACR ) );
-		    }
+	    if (ints) {
+		/* Header */
+		if (ints & JPU_JINTS_INS3_HEADER) {
+		    D_INFO( "libshjpeg:      -> HEADER (%dx%d)",
+			    shjpeg_jpu_getreg32(data, JPU_JIFDDHSZ),
+			    shjpeg_jpu_getreg32(data, JPU_JIFDDVSZ));
 		}
-		else {
-		    data->jpeg_linebufs |= (1 << data->jpeg_linebuf);
+		
+		/* Error */
+		if (ints & JPU_JINTS_INS5_ERROR) {
+		    data->jpeg_error = shjpeg_jpu_getreg32(data, JPU_JCDERR);
+		    
+		    D_INFO("libshjpeg:      -> ERROR 0x%08x!", data->jpeg_error);
+		    done = 1;
+		}
+		
+		/* Done */
+		if (ints & JPU_JINTS_INS6_DONE) {
+		    data->jpeg_end = 1;
+		    data->jpeg_linebufs = 0;
+		    
+		    D_INFO( "	      -> DONE" );
+		    
+		    done = 1;
+		}
+		
+		/* Done */
+		if (ints & JPU_JINTS_INS10_XFER_DONE) {
+		    data->jpeg_end = 1;
+		    
+		    D_INFO( "	      -> XFER DONE" );
+		    
+		    done = 1;
+		}
+		
+		/* Line buffer ready? FIXME: encoding */
+		if (ints & 
+		    (JPU_JINTS_INS11_LINEBUF0 | JPU_JINTS_INS12_LINEBUF1)) {
+		    D_INFO("	      -> LINEBUF %d DONE",
+			   data->jpeg_linebuf );
+		    
+		    if (data->jpeg_encode) {
+			data->jpeg_linebufs &= ~(1 << data->jpeg_linebuf);
+			data->jpeg_linebuf = data->jpeg_linebuf ? 0 : 1;
+			data->jpeg_reading_line = 0;
+			
+			if (data->jpeg_linebufs) {
+			    /* should still be one */
+			    data->jpeg_reading_line = 1; 
+			    
+			    if (!data->jpeg_end)  {
+				shjpeg_jpu_setreg32(data, JPU_JCCMD,
+						    JPU_JCCMD_LCMD2 | 
+						    JPU_JCCMD_LCMD1 );
+			    }
+			}
 
-		    data->jpeg_linebuf = data->jpeg_linebuf ? 0 : 1;
+			data->jpeg_line += 16;
 
-		    if (data->jpeg_linebufs != 3) {
-			data->jpeg_writing_line = 1; /* should still be one */
+			if (convert && !data->veu_running && !data->jpeg_end) {
+#ifdef SHJPEG_DEBUG
+			    u32 vdayr = shjpeg_veu_getreg32(data, VEU_VDAYR);
+			    u32 vdacr = shjpeg_veu_getreg32(data, VEU_VDACR);
+#endif
+			    
+			    D_INFO( "		-> CONVERT %d", 
+				    data->veu_linebuf );
+			    data->veu_running = 1;
 
-			if (data->jpeg_line > 0 && !data->jpeg_end) {
-			    // JPU_JCCMD = JCCMD_LCMD1 | JCCMD_LCMD2;
-			    shjpeg_jpu_setreg32( data, JPU_JCCMD,
-						 JPU_JCCMD_LCMD2 |
-						 JPU_JCCMD_LCMD1 );
+			    shjpeg_veu_setreg32(data, VEU_VDAYR,
+						(data->veu_linebuf) ?
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFESYA2):
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFESYA1));
+			    shjpeg_veu_setreg32(data, VEU_VDACR,
+						(data->veu_linebuf) ?
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFESCA2):
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFESCA1));
+			    shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
+			    
+			    D_INFO( "		-> SWAP, "
+				    "VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)",
+				    shjpeg_veu_getreg32( data, VEU_VSAYR ), vdayr,
+				    shjpeg_veu_getreg32( data, VEU_VDAYR ), vdacr,
+				    shjpeg_veu_getreg32( data, VEU_VDACR ) );
 			}
 		    }
 		    else {
-			data->jpeg_writing_line = 0;
-		    }
-
-		    data->jpeg_line += 16;
-
-		    if (convert && !data->veu_running && 
-			!data->jpeg_end && !data->jpeg_error) {
-			D_INFO("		-> CONVERT %d",
-			       data->veu_linebuf );
-
-			data->veu_running = 1;
-
-			shjpeg_veu_setreg32(data, VEU_VSAYR,
-					    (data->veu_linebuf) ?
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFDDYA2):
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFDDYA1));
-			shjpeg_veu_setreg32(data, VEU_VSACR,
-					    (data->veu_linebuf) ?
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFDDCA2):
-					    shjpeg_jpu_getreg32(data, 
-								JPU_JIFDDCA1));
-			shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
+			data->jpeg_linebufs |= (1 << data->jpeg_linebuf);
+			
+			data->jpeg_linebuf = data->jpeg_linebuf ? 0 : 1;
+			
+			if (data->jpeg_linebufs != 3) {
+			    /* should still be one */
+			    data->jpeg_writing_line = 1; 
+			    
+			    if (data->jpeg_line > 0 && !data->jpeg_end) {
+				shjpeg_jpu_setreg32( data, JPU_JCCMD,
+						     JPU_JCCMD_LCMD2 |
+						     JPU_JCCMD_LCMD1 );
+			    }
+			}
+			else {
+			    data->jpeg_writing_line = 0;
+			}
+			
+			data->jpeg_line += 16;
+			
+			if (convert && !data->veu_running && 
+			    !data->jpeg_end && !data->jpeg_error) {
+			    D_INFO("		-> CONVERT %d",
+				   data->veu_linebuf );
+			    
+			    data->veu_running = 1;
+			    
+			    shjpeg_veu_setreg32(data, VEU_VSAYR,
+						(data->veu_linebuf) ?
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFDDYA2):
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFDDYA1));
+			    shjpeg_veu_setreg32(data, VEU_VSACR,
+						(data->veu_linebuf) ?
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFDDCA2):
+						shjpeg_jpu_getreg32(data, 
+								    JPU_JIFDDCA1));
+			    shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
+			}
 		    }
 		}
-	    }
-
-	    /* Loaded */
-	    if (ints & JPU_JINTS_INS13_LOADED) {
-		D_INFO( "	      -> LOADED %d (writing: %d)", 
-			data->jpeg_buffer, data->jpeg_writing );
-
-		data->jpeg_buffers &= ~(1 << data->jpeg_buffer);
-
-		data->jpeg_buffer = data->jpeg_buffer ? 0 : 1;
-
-		data->jpeg_writing--;
-
-		done = 1;
-	    }
-
-	    /* Reload */
-	    if (ints & JPU_JINTS_INS14_RELOAD) {
-		D_INFO( "	      -> RELOAD %d", 
-			data->jpeg_buffer );
-
-		data->jpeg_buffers &= ~(1 << data->jpeg_buffer);
-
-		data->jpeg_buffer = data->jpeg_buffer ? 0 : 1;
-
-		if (data->jpeg_buffers) {
-		    data->jpeg_reading = 1;   /* should still be one */
-
-		    shjpeg_jpu_setreg32(data, JPU_JCCMD, 
-					JPU_JCCMD_READ_RESTART);
+		
+		/* Loaded */
+		if (ints & JPU_JINTS_INS13_LOADED) {
+		    D_INFO( "	      -> LOADED %d (writing: %d)", 
+			    data->jpeg_buffer, data->jpeg_writing );
+		    
+		    data->jpeg_buffers &= ~(1 << data->jpeg_buffer);
+		    
+		    data->jpeg_buffer = data->jpeg_buffer ? 0 : 1;
+		    
+		    data->jpeg_writing--;
+		    
+		    done = 1;
 		}
-		else
-		    data->jpeg_reading = 0;
-
-		done = 1;
+		
+		/* Reload */
+		if (ints & JPU_JINTS_INS14_RELOAD) {
+		    D_INFO( "	      -> RELOAD %d", 
+			    data->jpeg_buffer );
+		    
+		    data->jpeg_buffers &= ~(1 << data->jpeg_buffer);
+		    
+		    data->jpeg_buffer = data->jpeg_buffer ? 0 : 1;
+		    
+		    if (data->jpeg_buffers) {
+			data->jpeg_reading = 1;   /* should still be one */
+			
+			shjpeg_jpu_setreg32(data, JPU_JCCMD, 
+					    JPU_JCCMD_READ_RESTART);
+		    }
+		    else
+			data->jpeg_reading = 0;
+		    
+		    done = 1;
+		}
+	    }
+	    
+	    /* re-enable IRQ */
+	    val = 1;
+	    if (write(data->jpu_uio_fd, &val, sizeof(val) ) != sizeof(val)) {
+		D_PERROR("libshjpeg: write() to uio failed.");
+		return -1;
 	    }
 	}
 
-	/* re-enable IRQ */
-	val = 1;
-	if (write(data->jpu_uio_fd, &val, sizeof(val) ) != sizeof(val)) {
-	    D_PERROR("libshjpeg: write() to uio failed.");
-	    return -1;
+	if (fds[1].revents & POLLIN) {	// VEU IRQ
+	    D_INFO("libshjpeg: VEU IRQ - VEVTR=%08x, VSTAR=%08x, %d lines", 
+		   shjpeg_veu_getreg32(data, VEU_VEVTR),
+		   shjpeg_veu_getreg32(data, VEU_VSTAR),
+		   shjpeg_veu_getreg32(data, VEU_VRFSR) >> 16);
+	    shjpeg_veu_setreg32(data, VEU_VEVTR, 0);
+
+	    /* read number of interrupts */
+	    if (read(data->veu_uio_fd, &val, sizeof(val)) != sizeof(val)) {
+		D_ERROR("libshjpeg: read IRQ count from VEU failed.");
+		return -1;
+	    }
+          
+	    /* sanity check */
+	    D_INFO("libshjpeg: VEU IRQ counts = %d", val);
+
+	    if (data->jpeg_encode) {
+		D_INFO("         -> CONVERTED %d" , data->veu_linebuf);
+		if (data->jpeg_end || data->jpeg_error || 
+		    (data->jpeg_line + 16 >= data->jpeg_height)) {
+		    D_INFO("         -> STOP VEU");
+                         
+		    data->veu_running = 0;
+		    data->jpeg_linebufs = 0;
+		}
+                    
+		data->jpeg_linebufs |= 1 << data->veu_linebuf;
+                    
+		if (!data->jpeg_reading_line) {
+		    D_INFO("         -> ENCODE %d", data->veu_linebuf);
+		    shjpeg_jpu_setreg32(data, JPU_JCCMD,
+					JPU_JCCMD_LCMD1 | JPU_JCCMD_LCMD2);
+		    data->jpeg_reading_line = 1;
+		}
+
+		if (data->veu_running) {
+		    data->veu_linebuf = data->veu_linebuf ? 0 : 1;
+		    data->veu_running = 0;
+                    
+		    if (!(data->jpeg_linebufs & (1 << data->veu_linebuf))) {
+#ifdef SHJPEG_DEBUG
+			u32 vdayr, vdacr;
+                              
+			vdayr = shjpeg_veu_getreg32(data, VEU_VDAYR);
+			vdacr = shjpeg_veu_getreg32(data, VEU_VDACR);
+#endif
+                              
+			D_INFO("         -> CONVERT %d", data->veu_linebuf);
+                              
+			data->veu_running = 1;   /* should still be one */
+			jpeg->sa_y += jpeg->sa_inc;
+			jpeg->sa_c += jpeg->sa_inc;
+			shjpeg_veu_setreg32(data, VEU_VSAYR, jpeg->sa_y);
+			shjpeg_veu_setreg32(data, VEU_VSACR, jpeg->sa_c);
+			shjpeg_veu_setreg32(data, VEU_VDAYR,
+					    (data->veu_linebuf) ? 
+					    shjpeg_jpu_getreg32(data, JPU_JIFESYA2) : 
+					    shjpeg_jpu_getreg32(data, JPU_JIFESYA1));
+			shjpeg_veu_setreg32(data, VEU_VDACR,
+					    (data->veu_linebuf) ? 
+					    shjpeg_jpu_getreg32(data, JPU_JIFESCA2) : 
+					    shjpeg_jpu_getreg32(data, JPU_JIFESCA1));
+			shjpeg_veu_setreg32(data, VEU_VESTR, 0x1);
+			
+			D_INFO("         -> SWAP, VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)", 
+			       shjpeg_veu_getreg32(data, VEU_VSAYR), vdayr, 
+			       shjpeg_veu_getreg32(data, VEU_VDAYR), vdacr, 
+			       shjpeg_veu_getreg32(data, VEU_VDACR));
+		    }
+
+		} 
+	    } else { // not encoding
+		/* Release line buffer. */
+		data->jpeg_linebufs &= ~(1 << data->veu_linebuf);
+                    
+		/* Resume decoding if it was blocked. */
+		if (!data->jpeg_writing_line && !data->jpeg_end && 
+		    !data->jpeg_error && data->jpeg_linebufs != 3) {
+		    D_INFO( "         -> RESUME %d", data->jpeg_linebuf );
+                         
+		    data->jpeg_writing_line = 1;
+                         
+		    shjpeg_jpu_setreg32(data, JPU_JCCMD, 
+					JPU_JCCMD_LCMD1 | JPU_JCCMD_LCMD2 );
+		}
+                    
+		data->veu_linebuf = data->veu_linebuf ? 0 : 1;
+                    
+		if (data->jpeg_linebufs) {
+		    D_INFO("         -> CONVERT %d", data->veu_linebuf);
+                         
+		    data->veu_running = 1;   /* should still be one */
+
+		    // VEU_VSAYR = veu_linebuf ? JPU_JIFDDYA2 : JPU_JIFDDYA1;
+		    shjpeg_veu_setreg32(data, VEU_VSAYR,
+					data->veu_linebuf ? 
+					shjpeg_jpu_getreg32(data, JPU_JIFDDYA2) : 
+					shjpeg_jpu_getreg32(data, JPU_JIFDDYA1));
+		    // VEU_VSACR = veu_linebuf ? JPU_JIFDDCA2 : JPU_JIFDDCA1;
+		    shjpeg_veu_setreg32(data, VEU_VSACR,
+					data->veu_linebuf ? 
+					shjpeg_jpu_getreg32(data, JPU_JIFDDCA2) : 
+					shjpeg_jpu_getreg32(data, JPU_JIFDDCA1));
+		    shjpeg_veu_setreg32(data, VEU_VESTR, 0x0101);
+		} else {
+		    if (data->jpeg_end)
+			done = 1;
+
+		    data->veu_running = 0;
+		}
+	    }
+
+	    /* re-enable IRQ */
+	    val = 1;
+	    if (write(data->veu_uio_fd, &val, sizeof(val)) != sizeof(val)) {
+		D_ERROR("libshjpeg: re-enabling IRQ failed.\n");
+		return -1;
+	    }
 	}
 
 	/* are we done? */

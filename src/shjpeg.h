@@ -125,7 +125,7 @@ int shjpeg_get_frame_buffer(shjpeg_context_t	 *context,
  * \sa shjpeg_decode_run(), shjpeg_decode_shutdown()
  */
 
-int shpeg_decode_init(shjpeg_context_t *context);
+int shjpeg_decode_init(shjpeg_context_t *context);
 
 /**
  * \brief Decode JPEG stream.

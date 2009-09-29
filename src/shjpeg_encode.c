@@ -53,7 +53,7 @@ encode_hw(shjpeg_internal_t	*data,
 	  int			 pitch)
 {
     int			ret = 0;
-    int			i, fd;
+    int			i, fd = -1;
     int			written = 0;
     u32			vtrcr   = 0;
     u32			vswpin  = 0;
@@ -395,7 +395,7 @@ encode_hw(shjpeg_internal_t	*data,
 	for (i=1; i<=2; i++) {
 	    if (jpeg.buffers & i) {
 		int amount = coded_data_amount(data) - written;
-		int len;
+		size_t len;
 		void *ptr;
 
 		if (amount > SHJPEG_JPU_RELOAD_SIZE)

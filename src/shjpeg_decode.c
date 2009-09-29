@@ -140,8 +140,10 @@ decode_hw(shjpeg_internal_t	*data,
     len = SHJPEG_JPU_RELOAD_SIZE;
     ret = context->sops->read(context->private, &len, (void*)data->jpeg_virt);
     if (ret) {
-	lockf( data->jpu_uio_fd, F_ULOCK, 0 );
 	D_DERROR( ret, "libshjpeg: Could not fill first reload buffer!" );
+	if (lockf( data->jpu_uio_fd, F_ULOCK, 0 ) < 0) {
+	    D_PERROR("libshjpeg: unlock UIO failed.");
+	}
 	return -1;
     }
 
@@ -502,7 +504,7 @@ shjpeg_libjpeg_fill_input_buffer(j_decompress_ptr cinfo)
     shjpeg_stream_src_ptr src = (shjpeg_stream_src_ptr)cinfo->src;
     shjpeg_context_t 	 *context = (shjpeg_context_t*)cinfo->client_data;
     size_t		  nbytes = SHJPEG_STREAM_BUF_SIZE;
-    int			  ret;
+    int			  ret = 1;
     
     if (context->sops->read)
 	ret = context->sops->read(context->private, &nbytes, (void*)src->data);
@@ -527,7 +529,6 @@ static void
 shjpeg_libjpeg_skip_input_data(j_decompress_ptr cinfo, long num_bytes)
 {
     shjpeg_stream_src_ptr src = (shjpeg_stream_src_ptr)cinfo->src;
-    shjpeg_context_t 	 *context = (shjpeg_context_t*)cinfo->client_data;
 
     if (num_bytes > 0) {
 	while(num_bytes > (long)src->pub.bytes_in_buffer) {

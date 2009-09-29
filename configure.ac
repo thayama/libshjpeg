@@ -17,6 +17,7 @@ AC_CANONICAL_HOST
 AC_PROG_CC
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
+AC_C_INLINE
 
 # Checks for libraries.
 AC_CHECK_LIB([jpeg], [jpeg_std_error],, [AC_MSG_ERROR([libjpeg not found!])])

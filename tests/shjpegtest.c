@@ -127,7 +127,7 @@ shjpeg_sops my_sops = {
     .finalize = sops_finalize,
 };
 
-void *argv0;
+const char *argv0;
 
 void 
 print_usage() {
@@ -197,7 +197,7 @@ main(int argc, char *argv[])
 	    break;
 
 	default:
-	    fprintf(stderr, "unknown option 0%.x\n");
+	    fprintf(stderr, "unknown option 0%x.\n", c);
 	    print_usage();
 	    return 1;
 	}
@@ -238,7 +238,7 @@ main(int argc, char *argv[])
 	return 1;
     }
     if (verbose)
-	printf("shjpeg_init() - done ... context = %08p\n", context);
+	printf("shjpeg_init() - done ... context = %p\n", context);
 
     /* set callbacks to context */
     context->sops = &my_sops;
@@ -306,7 +306,7 @@ main(int argc, char *argv[])
 
     /* now prep to re-encode */
     close(fd);
-    if ((fd = open(output, O_RDWR | O_CREAT)) < 0) {
+    if ((fd = open(output, O_RDWR | O_CREAT, 0644)) < 0) {
 	fprintf(stderr, "%s: Can't open '%s'.\n", argv[0], output);
 	return 1;
     }

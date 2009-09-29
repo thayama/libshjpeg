@@ -1,6 +1,8 @@
 #
 #
 #
+AM_CFLAGS = -Wall -Werror
+
 lib_LTLIBRARIES = libshjpeg.la
 
 include_HEADERS = \
