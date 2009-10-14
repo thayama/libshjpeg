@@ -126,11 +126,17 @@ int main(int argc, char *argv[])
     unsigned int page_size = getpagesize();
     shjpeg_context_t *ctx;
     sops_data_t data = { .data = NULL, .size = 0L };
+    int verbose = 0, n = 1;
+
+    if (!strcmp(argv[1], "-v")) {
+    	verbose = 1;
+	n++;
+    }
 
     /* ready */
-    videodev = argv[1] ? argv[1] : videodev;
+    videodev = argv[n] ? argv[n] : videodev;
 
-    if (!(ctx = shjpeg_init(1)))
+    if (!(ctx = shjpeg_init(verbose)))
 	return 1;
 
     if (shjpeg_get_frame_buffer(ctx, &jpeg_phys, &jpeg_virt, &jpeg_size ))
