@@ -20,6 +20,7 @@
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <getopt.h>
 
 #include <fcntl.h>
 #include <unistd.h>
@@ -107,6 +108,22 @@ shjpeg_sops my_sops = {
     .finalize = sops_finalize,
 };
 
+static char *argv0;
+
+void print_usage() {
+    fprintf(stderr, 
+	    "Usage: %s [OPTION] [<v4l2 device>]\n", argv0);
+    fprintf(stderr, 
+	    "- Encode frames captured via V4L2 device.\n"
+	    "- Default is to catpure from /dev/video0.\n"
+	    "- Use with sighttpd.\n"
+	    "\n"
+	    "Options:\n"
+	    "  -h, --help                this message.\n"
+	    "  -v, --verbose             libshjpeg verbose output.\n"
+	    "  -i <n>, --interval=<n>    send JPEG at <n> msec interval. (Default: 0msec)\n");
+}
+
 int main(int argc, char *argv[])
 {
     int i, bufsiz;
@@ -126,16 +143,48 @@ int main(int argc, char *argv[])
     unsigned int page_size = getpagesize();
     shjpeg_context_t *ctx;
     sops_data_t data = { .data = NULL, .size = 0L };
-    int verbose = 0, n = 1;
+    int verbose = 0;
+    int interval = 0;
 
-    if ((argc > 1) && !strcmp(argv[1], "-v")) {
-    	verbose = 1;
-	n++;
+    argv0 = argv[0];
+
+    /* parse args */
+    while(1) {
+	int c, option_index = 0;
+	static struct option long_options[] = {
+	    {"help", 0, 0, 'h'},
+	    {"verbose", 0, 0, 'v'},
+	    {"interval", 1, 0, 'i'},
+	    {0, 0, 0, 0}
+	};
+
+	if ((c = getopt_long(argc, argv, "hvi:",
+			     long_options, &option_index)) == -1)
+	    break;
+
+	switch(c) {
+	case 'h':
+	    print_usage();
+	    return 0;
+
+	case 'v':
+	    verbose = 1;
+	    break;
+
+	case 'i':
+	    interval = strtol(optarg, NULL, 0);
+	    break;
+
+	default:
+	    fprintf(stderr, "unknown option 0%x.\n", c);
+	    print_usage();
+	    return 1;
+	}
     }
 
-    /* ready */
-    videodev = argv[n] ? argv[n] : videodev;
+    videodev = argv[optind] ? argv[optind] : videodev;
 
+    /* ready */
     if (!(ctx = shjpeg_init(verbose)))
 	return 1;
 
@@ -265,7 +314,7 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "+");
 	fflush(stderr);
 
-//	usleep(30000);
+	usleep(interval * 1000);
     }
 
     return 0;
