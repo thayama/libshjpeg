@@ -255,6 +255,46 @@ uio_init(shjpeg_context_t *context, shjpeg_internal_t *data)
     data->jpeg_data = 
 	data->jpeg_lb2  + SHJPEG_JPU_LINEBUFFER_SIZE; // jpeg data
 
+    /*
+     * XXX: just in case, for the pending IRQ from the previous user
+     * we release must unblock interrupt. unless we won't get IRQ.
+     */
+    if (lockf(data->jpu_uio_fd, F_LOCK, 0) < 0) {
+    	D_PERROR("libshjpeg: Couldn't lock JPU UIO.");
+	goto error;
+    } else {
+	int n = 1;
+
+	if (write(data->jpu_uio_fd, &n, sizeof(n)) < sizeof(n)) {
+	    D_PERROR("libshjpeg: unblock JPU IRQ failed.");
+	    lockf(data->jpu_uio_fd, F_ULOCK, 0);
+	    goto error;
+	}
+
+	if (lockf(data->jpu_uio_fd, F_ULOCK, 0) < 0) {
+	    D_PERROR("libshjpeg: Couldn't unlock JPU UIO.");
+	    goto error;
+	}
+    }
+
+    if (lockf(data->veu_uio_fd, F_LOCK, 0) < 0) {
+    	D_PERROR("libshjpeg: Couldn't lock VEU UIO.");
+	goto error;
+    } else {
+	int n = 1;
+
+	if (write(data->veu_uio_fd, &n, sizeof(n)) < sizeof(n)) {
+	    D_PERROR("libshjpeg: unblock VEU IRQ failed.");
+	    lockf(data->veu_uio_fd, F_ULOCK, 0);
+	    goto error;
+	}
+
+	if (lockf(data->veu_uio_fd, F_ULOCK, 0) < 0) {
+	    D_PERROR("libshjpeg: Couldn't unlock VEU UIO.");
+	    goto error;
+	}
+    }
+
     return 0;
 
 error:
