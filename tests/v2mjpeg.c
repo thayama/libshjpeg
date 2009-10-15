@@ -128,7 +128,7 @@ int main(int argc, char *argv[])
     sops_data_t data = { .data = NULL, .size = 0L };
     int verbose = 0, n = 1;
 
-    if (!strcmp(argv[1], "-v")) {
+    if ((argc > 1) && !strcmp(argv[1], "-v")) {
     	verbose = 1;
 	n++;
     }
@@ -141,7 +141,7 @@ int main(int argc, char *argv[])
 
     if (shjpeg_get_frame_buffer(ctx, &jpeg_phys, &jpeg_virt, &jpeg_size ))
 	return 1;
-    printf("jpeg mem buffer at 0x%08lx/%p, size = 0x%08x\n", jpeg_phys, jpeg_virt, jpeg_size);
+    fprintf(stderr, "jpeg mem buffer at 0x%08lx/%p, size = 0x%08x\n", jpeg_phys, jpeg_virt, jpeg_size);
 
     if ((vd = open(videodev, O_RDWR)) < 0) {
 	fprintf(stderr, "Can't open '%s'\n", videodev);
@@ -259,13 +259,13 @@ int main(int argc, char *argv[])
 	printf("\r\n\r\n--%s\r\n", MJPEG_BOUNDARY);
 	printf("Content-Type: image/jpeg\r\n");
 	printf("Content-length: %d\r\n\r\n", data.offset);
-	fwrite(data.data, data.size, 1, stdout);
-	printf("\r\n");
+	fwrite(data.data, data.offset, 1, stdout);
+//	printf("\r\n");
 
 	fprintf(stderr, "+");
 	fflush(stderr);
 
-	usleep(300000);
+//	usleep(30000);
     }
 
     return 0;
