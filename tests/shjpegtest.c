@@ -141,7 +141,7 @@ print_usage() {
 	    "  -h, --help                this message.\n"
 	    "  -v, --verbose             libshjpeg verbose output.\n"
 	    "  -q, --quiet		 no messages from this program.\n"
-	    "  -d[<ppm], --dump[=<ppm>]  dump intermediate image in ppm (default: test.ppm).\n"
+	    "  -d[<ppm>], --dump[=<ppm>] dump intermediate image in ppm (default: test.ppm).\n"
 	    "  -p <phys>, --phys=<phys>  specify physical memory to use.\n"
 	    "  -n, --no-libjpeg          disable fallback to libjpeg.\n");
 }

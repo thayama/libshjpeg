@@ -25,6 +25,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <malloc.h>
+#include <signal.h>
 
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -109,19 +110,49 @@ shjpeg_sops my_sops = {
 };
 
 static char *argv0;
+static struct timeval start_tv;
+static int frame_count = 0;
 
 void print_usage() {
     fprintf(stderr, 
 	    "Usage: %s [OPTION] [<v4l2 device>]\n", argv0);
     fprintf(stderr, 
 	    "- Encode frames captured via V4L2 device.\n"
-	    "- Default is to catpure from /dev/video0.\n"
-	    "- Use with sighttpd.\n"
+	    "- Default is to catpure from /dev/video0 and output to stdout.\n"
+	    "- To transmit over HTTP, use with sighttpd.\n"
 	    "\n"
 	    "Options:\n"
-	    "  -h, --help                this message.\n"
-	    "  -v, --verbose             libshjpeg verbose output.\n"
-	    "  -i <n>, --interval=<n>    send JPEG at <n> msec interval. (Default: 0msec)\n");
+	    "  -h, --help                         this message.\n"
+	    "  -v, --verbose                      libshjpeg verbose output.\n"
+	    "  -q, --quiet                        quiet mode.\n"
+	    "  -f, --show-fps                     show fps.\n"
+	    "  -o [<prefix>], --output[=<prefix>] dump to the file.\n"
+	    "  -c <count>, --count=<count>        # of JPEGs to capture.\n"
+	    "                                     (Default: infinite)\n"
+	    "  -i <n>, --interval=<n>             xmit at <n> msec interval. (Default: 0msec)\n");
+}
+
+void show_fps(int dummy)
+{
+    struct timeval end_tv;
+
+    gettimeofday(&end_tv, NULL);
+
+    if (frame_count) {
+    	unsigned long diff;
+
+	diff = (end_tv.tv_sec - start_tv.tv_sec) * 1000 + 
+		(end_tv.tv_usec - start_tv.tv_usec) / 1000;
+
+	fprintf(stderr, "Frame count = %d\n", frame_count);
+	fprintf(stderr, "Duration    = %ldms\n", diff);
+	fprintf(stderr, "Average     = %lffps\n", 
+		(double)(frame_count * 1000) / diff);
+    } else {
+    	fprintf(stderr, "No frames encoded\n");
+    }
+
+    exit(0);
 }
 
 int main(int argc, char *argv[])
@@ -145,6 +176,11 @@ int main(int argc, char *argv[])
     sops_data_t data = { .data = NULL, .size = 0L };
     int verbose = 0;
     int interval = 0;
+    int quiet = 0;
+    int fps = 0;
+    int output = 0;
+    char *prefix = "jpegdata-";
+    int num_count = 0;
 
     argv0 = argv[0];
 
@@ -154,11 +190,15 @@ int main(int argc, char *argv[])
 	static struct option long_options[] = {
 	    {"help", 0, 0, 'h'},
 	    {"verbose", 0, 0, 'v'},
+	    {"quiet", 0, 0, 'q'},
+	    {"show-fps", 0, 0, 'f'},
+	    {"output", 2, 0, 'o'},
+	    {"count", 1, 0, 'c'},
 	    {"interval", 1, 0, 'i'},
 	    {0, 0, 0, 0}
 	};
 
-	if ((c = getopt_long(argc, argv, "hvi:",
+	if ((c = getopt_long(argc, argv, "hvqfo::c:i:",
 			     long_options, &option_index)) == -1)
 	    break;
 
@@ -169,6 +209,24 @@ int main(int argc, char *argv[])
 
 	case 'v':
 	    verbose = 1;
+	    break;
+
+	case 'q':
+	    quiet = 1;
+	    break;
+
+	case 'f':
+	    fps = 1;
+	    break;
+
+	case 'o':
+	    output = 1;
+	    if (optarg)
+	    	prefix = optarg;
+	    break;
+
+	case 'c':
+	    num_count = strtol(optarg, NULL, 0);
 	    break;
 
 	case 'i':
@@ -184,20 +242,26 @@ int main(int argc, char *argv[])
 
     videodev = argv[optind] ? argv[optind] : videodev;
 
+    /* set signal handler */
+    if (fps)
+	signal(SIGINT, show_fps);
+
     /* ready */
     if (!(ctx = shjpeg_init(verbose)))
 	return 1;
 
     if (shjpeg_get_frame_buffer(ctx, &jpeg_phys, &jpeg_virt, &jpeg_size ))
 	return 1;
-    fprintf(stderr, "jpeg mem buffer at 0x%08lx/%p, size = 0x%08x\n", jpeg_phys, jpeg_virt, jpeg_size);
+
+    if (!quiet)
+	fprintf(stderr, "jpeg mem buffer at 0x%08lx/%p, size = 0x%08x\n", jpeg_phys, jpeg_virt, jpeg_size);
 
     if ((vd = open(videodev, O_RDWR)) < 0) {
 	fprintf(stderr, "Can't open '%s'\n", videodev);
 	return 1;
     }
 
-    if (getinfo(vd))
+    if (!quiet && getinfo(vd))
 	return 1;
 
     /* prepare capturing */
@@ -210,12 +274,14 @@ int main(int argc, char *argv[])
     fmt.fmt.pix.height=480;
     ioctl(vd, VIDIOC_S_FMT, &fmt);
     ioctl(vd, VIDIOC_G_FMT, &fmt);
-    fprintf(stderr, "width=%d\n", fmt.fmt.pix.width);
-    fprintf(stderr, "height=%d\n", fmt.fmt.pix.height);
-    fprintf(stderr, "pxformat=%4s\n", (char*)&fmt.fmt.pix.pixelformat);
-    fprintf(stderr, "field=%d\n", fmt.fmt.pix.field);
-    fprintf(stderr, "bytesperline=%d\n", fmt.fmt.pix.bytesperline);
-    fprintf(stderr, "VIDIOC_S_FMT done\n");
+    if (!quiet) {
+	fprintf(stderr, "width=%d\n", fmt.fmt.pix.width);
+	fprintf(stderr, "height=%d\n", fmt.fmt.pix.height);
+	fprintf(stderr, "pxformat=%4s\n", (char*)&fmt.fmt.pix.pixelformat);
+	fprintf(stderr, "field=%d\n", fmt.fmt.pix.field);
+	fprintf(stderr, "bytesperline=%d\n", fmt.fmt.pix.bytesperline);
+	fprintf(stderr, "VIDIOC_S_FMT done\n");
+    }
 
     memset(&reqbuf, 0, sizeof(reqbuf));
     reqbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
@@ -226,7 +292,8 @@ int main(int argc, char *argv[])
 	fprintf(stderr, "ioctl REQBUFS failed\n");
 	return 1;
     }
-    fprintf(stderr, "VIDIOC_REQBUFS done\n");
+    if (!quiet)
+    	fprintf(stderr, "VIDIOC_REQBUFS done\n");
 
     if (reqbuf.count < 2) {
 	fprintf(stderr, "could only get %d buffers\n", reqbuf.count);
@@ -241,7 +308,8 @@ int main(int argc, char *argv[])
     for(i = 0; i < reqbuf.count; i++) {
 	struct v4l2_buffer buffer;
 
-	fprintf(stderr, "registering buffer %d\n", i);
+	if (!quiet)
+	    fprintf(stderr, "registering buffer %d\n", i);
 
 	/* create buffer information to queue */
 	memset(&buffer, 0, sizeof(buffer));
@@ -264,9 +332,10 @@ int main(int argc, char *argv[])
 	memcpy((void*)&buffers[i].buffer, (void*)&buffer, sizeof(buffer));
 
 	/* debug */
-	fprintf(stderr,
-		"buffer %d: addr=%08x/%08lx, size=%08x\n", 
-		i, buffer.m.offset, buffers[i].start, buffer.length);
+	if (!quiet)
+	    fprintf(stderr,
+		    "buffer %d: addr=%08x/%08lx, size=%08x\n", 
+		    i, buffer.m.offset, buffers[i].start, buffer.length);
     }
 
     /* start capturing */
@@ -281,7 +350,11 @@ int main(int argc, char *argv[])
     ctx->private = &data;
 
     /* now ready to capture */
-    fprintf(stderr, "Starting Encoding...\n");
+    if (!quiet)
+	fprintf(stderr, "Starting Encoding...\n");
+
+    frame_count = 0;
+    gettimeofday(&start_tv, NULL);
     while(1) {
 	struct v4l2_buffer buffer;
 
@@ -305,17 +378,40 @@ int main(int argc, char *argv[])
 	}
 
 	// output buffered data
-	printf("\r\n\r\n--%s\r\n", MJPEG_BOUNDARY);
-	printf("Content-Type: image/jpeg\r\n");
-	printf("Content-length: %d\r\n\r\n", data.offset);
-	fwrite(data.data, data.offset, 1, stdout);
-//	printf("\r\n");
+	if (output) {
+	    FILE *fp;
+	    char fn[64];
 
-	fprintf(stderr, "+");
+	    snprintf(fn, sizeof(fn), "%s%03d.jpg", prefix, frame_count);
+
+	    if ((fp = fopen(fn, "w")) == NULL) {
+	    	fprintf(stderr, "Can't create file: %s\n", fn);
+		return 1;
+	    }
+	    fwrite(data.data, data.offset, 1, fp);
+	    fclose(fp);
+	} else {
+	    printf("\r\n\r\n--%s\r\n", MJPEG_BOUNDARY);
+	    printf("Content-Type: image/jpeg\r\n");
+	    printf("Content-length: %d\r\n\r\n", data.offset);
+	    fwrite(data.data, data.offset, 1, stdout);
+//	    printf("\r\n");
+	}
+
+	if (!quiet)
+	    fprintf(stderr, "+");
 	fflush(stderr);
 
-	usleep(interval * 1000);
+	frame_count++;
+	if ((num_count > 0) && (num_count <= frame_count))
+	    break;
+
+	if (interval)
+	    usleep(interval * 1000);
     }
+
+    if (fps)
+    	show_fps(0);
 
     return 0;
 }
