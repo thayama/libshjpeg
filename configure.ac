@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.63])
-AC_INIT([libshjpeg], [0.0.2], [taki@igel.co.jp])
-AC_SUBST([LIBSHJPEG_VERSION], [0:2:0])
+AC_INIT([libshjpeg], [1.0.0], [taki@igel.co.jp])
+AC_SUBST([LIBSHJPEG_VERSION], [1:0:0])
 
 AM_INIT_AUTOMAKE([-Wall -Werror])
 AC_CONFIG_SRCDIR([src/shjpeg_decode.c])

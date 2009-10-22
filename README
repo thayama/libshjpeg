@@ -6,3 +6,15 @@ Run 'autoreconf -vif' to create 'configure'.
 
 Then, run ./configure. You must have libjpeg in order to compile
 properly.
+
+You can find 3 sample codes in ./tests/ directory. Possible options
+on these sample codes can be found by giving '--help' as a command
+line option.
+
+shjpegtest    - Decode and then encode the JPEG file.
+
+v2mjpeg	      - Encode V4L2 input, and stream as multipart/x-mixed-replace.
+		Use with sighttpd (http://github.com/kfish/sighttpd).
+
+mjpeg2jpeg.pl - Retrieve v2mjpeg/sighttpd output via http, and stores as
+		individual JPEG files.
