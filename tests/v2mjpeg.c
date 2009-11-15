@@ -126,6 +126,7 @@ void print_usage() {
 	    "  -v, --verbose                      libshjpeg verbose output.\n"
 	    "  -q, --quiet                        quiet mode.\n"
 	    "  -f, --show-fps                     show fps.\n"
+	    "  -s <w>x<h>, --size=<w>x<h>         capture size.\n"
 	    "  -o [<prefix>], --output[=<prefix>] dump to the file.\n"
 	    "  -c <count>, --count=<count>        # of JPEGs to capture.\n"
 	    "                                     (Default: infinite)\n"
@@ -181,6 +182,8 @@ int main(int argc, char *argv[])
     int output = 0;
     char *prefix = "jpegdata-";
     int num_count = 0;
+    unsigned int width = 640;
+    unsigned int height = 480;
 
     argv0 = argv[0];
 
@@ -194,11 +197,12 @@ int main(int argc, char *argv[])
 	    {"show-fps", 0, 0, 'f'},
 	    {"output", 2, 0, 'o'},
 	    {"count", 1, 0, 'c'},
+	    {"size", 1, 0, 's'},
 	    {"interval", 1, 0, 'i'},
 	    {0, 0, 0, 0}
 	};
 
-	if ((c = getopt_long(argc, argv, "hvqfo::c:i:",
+	if ((c = getopt_long(argc, argv, "hvqfo::c:i:s:",
 			     long_options, &option_index)) == -1)
 	    break;
 
@@ -227,6 +231,20 @@ int main(int argc, char *argv[])
 
 	case 'c':
 	    num_count = strtol(optarg, NULL, 0);
+	    break;
+
+	case 's':
+	    if (sscanf(optarg, "%ux%u", &width, &height) != 2) {
+	        fprintf(stderr, 
+			"capture size must be specified in <w>x<h>.\n");
+		return 1;
+	    }
+	    if ((width % 4) || (height % 4)) {
+	    	fprintf(stderr, 
+			"size must be multiple of 4 (four) - %dx%d given.\n",
+			width, height);
+		return 1;
+	    }
 	    break;
 
 	case 'i':
@@ -270,13 +288,21 @@ int main(int argc, char *argv[])
 //	ioctl(vd, VIDIOC_S_FMT, &fmt);
     ioctl(vd, VIDIOC_G_FMT, &fmt);
     fmt.fmt.pix.pixelformat = v4l2_fourcc('N', 'V', '1', '6');
-    fmt.fmt.pix.width=640;
-    fmt.fmt.pix.height=480;
-    ioctl(vd, VIDIOC_S_FMT, &fmt);
+    fmt.fmt.pix.width = width;
+    fmt.fmt.pix.height = height;
+    if (ioctl(vd, VIDIOC_S_FMT, &fmt) < 0) {
+    	fprintf(stderr, "VIDIOC_S_FMT failed - %08x, %dx%d\n",
+		fmt.fmt.pix.pixelformat, 
+		fmt.fmt.pix.width,
+		fmt.fmt.pix.height);
+	return 1;
+    }
     ioctl(vd, VIDIOC_G_FMT, &fmt);
     if (!quiet) {
-	fprintf(stderr, "width=%d\n", fmt.fmt.pix.width);
-	fprintf(stderr, "height=%d\n", fmt.fmt.pix.height);
+	fprintf(stderr, "width=%d (requested %d)\n", 
+		fmt.fmt.pix.width, width);
+	fprintf(stderr, "height=%d (requested %d)\n",
+		fmt.fmt.pix.height, height);
 	fprintf(stderr, "pxformat=%4s\n", (char*)&fmt.fmt.pix.pixelformat);
 	fprintf(stderr, "field=%d\n", fmt.fmt.pix.field);
 	fprintf(stderr, "bytesperline=%d\n", fmt.fmt.pix.bytesperline);
