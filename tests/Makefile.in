@@ -32,7 +32,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-bin_PROGRAMS = shjpegtest$(EXEEXT) v2mjpeg$(EXEEXT)
+bin_PROGRAMS = shjpegtest$(EXEEXT) v2mjpeg$(EXEEXT) \
+	shjpegshow$(EXEEXT)
 subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
@@ -48,6 +49,12 @@ CONFIG_CLEAN_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 PROGRAMS = $(bin_PROGRAMS)
+am_shjpegshow_OBJECTS = shjpegshow-shjpegshow.$(OBJEXT)
+shjpegshow_OBJECTS = $(am_shjpegshow_OBJECTS)
+shjpegshow_DEPENDENCIES = ../src/libshjpeg.la
+shjpegshow_LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(shjpegshow_CFLAGS) \
+	$(CFLAGS) $(shjpegshow_LDFLAGS) $(LDFLAGS) -o $@
 am_shjpegtest_OBJECTS = shjpegtest.$(OBJEXT)
 shjpegtest_OBJECTS = $(am_shjpegtest_OBJECTS)
 shjpegtest_DEPENDENCIES = ../src/libshjpeg.la
@@ -66,8 +73,10 @@ CCLD = $(CC)
 LINK = $(LIBTOOL) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) \
 	--mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
-SOURCES = $(shjpegtest_SOURCES) $(v2mjpeg_SOURCES)
-DIST_SOURCES = $(shjpegtest_SOURCES) $(v2mjpeg_SOURCES)
+SOURCES = $(shjpegshow_SOURCES) $(shjpegtest_SOURCES) \
+	$(v2mjpeg_SOURCES)
+DIST_SOURCES = $(shjpegshow_SOURCES) $(shjpegtest_SOURCES) \
+	$(v2mjpeg_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -193,6 +202,10 @@ shjpegtest_SOURCES = shjpegtest.c
 shjpegtest_LDADD = ../src/libshjpeg.la
 v2mjpeg_SOURCES = v2mjpeg.c
 v2mjpeg_LDADD = ../src/libshjpeg.la
+shjpegshow_SOURCES = shjpegshow.c
+shjpegshow_LDFLAGS = -L/usr/local/lib
+shjpegshow_CFLAGS = -I/usr/local/include -I/usr/local/include/directfb -I/usr/local/include/directfb-internal/
+shjpegshow_LDADD = ../src/libshjpeg.la -ldirectfb -lfusion -ldirect -lpthread -lz
 all: all-am
 
 .SUFFIXES:
@@ -254,6 +267,9 @@ clean-binPROGRAMS:
 	  echo " rm -f $$p $$f"; \
 	  rm -f $$p $$f ; \
 	done
+shjpegshow$(EXEEXT): $(shjpegshow_OBJECTS) $(shjpegshow_DEPENDENCIES) 
+	@rm -f shjpegshow$(EXEEXT)
+	$(shjpegshow_LINK) $(shjpegshow_OBJECTS) $(shjpegshow_LDADD) $(LIBS)
 shjpegtest$(EXEEXT): $(shjpegtest_OBJECTS) $(shjpegtest_DEPENDENCIES) 
 	@rm -f shjpegtest$(EXEEXT)
 	$(LINK) $(shjpegtest_OBJECTS) $(shjpegtest_LDADD) $(LIBS)
@@ -267,6 +283,7 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/shjpegshow-shjpegshow.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/shjpegtest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/v2mjpeg.Po@am__quote@
 
@@ -290,6 +307,20 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+shjpegshow-shjpegshow.o: shjpegshow.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(shjpegshow_CFLAGS) $(CFLAGS) -MT shjpegshow-shjpegshow.o -MD -MP -MF $(DEPDIR)/shjpegshow-shjpegshow.Tpo -c -o shjpegshow-shjpegshow.o `test -f 'shjpegshow.c' || echo '$(srcdir)/'`shjpegshow.c
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/shjpegshow-shjpegshow.Tpo $(DEPDIR)/shjpegshow-shjpegshow.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='shjpegshow.c' object='shjpegshow-shjpegshow.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(shjpegshow_CFLAGS) $(CFLAGS) -c -o shjpegshow-shjpegshow.o `test -f 'shjpegshow.c' || echo '$(srcdir)/'`shjpegshow.c
+
+shjpegshow-shjpegshow.obj: shjpegshow.c
+@am__fastdepCC_TRUE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(shjpegshow_CFLAGS) $(CFLAGS) -MT shjpegshow-shjpegshow.obj -MD -MP -MF $(DEPDIR)/shjpegshow-shjpegshow.Tpo -c -o shjpegshow-shjpegshow.obj `if test -f 'shjpegshow.c'; then $(CYGPATH_W) 'shjpegshow.c'; else $(CYGPATH_W) '$(srcdir)/shjpegshow.c'; fi`
+@am__fastdepCC_TRUE@	mv -f $(DEPDIR)/shjpegshow-shjpegshow.Tpo $(DEPDIR)/shjpegshow-shjpegshow.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='shjpegshow.c' object='shjpegshow-shjpegshow.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(shjpegshow_CFLAGS) $(CFLAGS) -c -o shjpegshow-shjpegshow.obj `if test -f 'shjpegshow.c'; then $(CYGPATH_W) 'shjpegshow.c'; else $(CYGPATH_W) '$(srcdir)/shjpegshow.c'; fi`
 
 mostlyclean-libtool:
 	-rm -f *.lo

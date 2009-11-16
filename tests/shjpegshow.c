@@ -67,7 +67,8 @@ void print_usage() {
 	    "  -v, --verbose              verbose output.\n"
 	    "  -f <font>, --font=<font>   font file to use.\n"
 	    "  -t, --trim                 trim to to fit screen.\n"
-	    "  -a, --aspect               keep aspect ratio. (default)\n");
+	    "  -a, --aspect               keep aspect ratio. (default)\n"
+	    "  -d, --duration             duration in sec. (default 1sec)\n");
 }
 
 int main(int argc, char *argv[])
@@ -103,6 +104,7 @@ int main(int argc, char *argv[])
     char path[PATH_MAX];
     char *fontfile = "/usr/local/share/directfb-examples/fonts/decker.ttf";
     int rc = 0;
+    int duration = 1;
 
     enum scale_t {
 	SCALE_TRIM,
@@ -124,10 +126,11 @@ int main(int argc, char *argv[])
 	    {"font", 1, 0, 'f'},
 	    {"trim", 0, 0, 't'},
 	    {"aspect", 0, 0, 'a'},
+	    {"default", 1, 0, 'd'},
 	    {0, 0, 0, 0}
 	};
 
-	if ((c  = getopt_long(argc, argv, "hvtaf:",
+	if ((c  = getopt_long(argc, argv, "hvtaf:d:",
 			      long_options, &option_index)) == -1)
 	    break;
 
@@ -142,6 +145,10 @@ int main(int argc, char *argv[])
 
 	case 'f':
 	    fontfile = optarg;
+	    break;
+
+	case 'd':
+	    duration = atoi(optarg);
 	    break;
 
 	case 't':
@@ -324,11 +331,11 @@ int main(int argc, char *argv[])
 	    time(&ct);
 	    tp = localtime(&ct);
 	    strftime(str, sizeof(str), "%Y/%m/%d %R", tp);
-	    DFBCHK(primary->SetColor(primary, 0x00, 0x00, 0x00, 0xff));
+	    DFBCHK(primary->SetColor(primary, 0x20, 0x20, 0x20, 0xff));
 	    DFBCHK(primary->
 		   DrawString(primary, str, -1, screen_width - 20,
 			      screen_height, DSTF_BOTTOMRIGHT));
-	    DFBCHK(primary->SetColor(primary, 0xff, 0xff, 0xff, 0xff));
+	    DFBCHK(primary->SetColor(primary, 0xf0, 0xf0, 0xf3, 0xff));
 	    DFBCHK(primary->
 		   DrawString(primary, str, -1, screen_width - 21,
 			      screen_height - 1, DSTF_BOTTOMRIGHT));
@@ -342,7 +349,7 @@ int main(int argc, char *argv[])
 	DFBCHK(primary->ReleaseSource(primary));
 
 	/* wait for the next */
-	sleep(1);
+	sleep(duration);
     }
 
     fprintf(stderr, "done\n");
