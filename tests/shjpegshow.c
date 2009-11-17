@@ -71,6 +71,65 @@ void print_usage() {
 	    "  -d, --duration             duration in sec. (default 1sec)\n");
 }
 
+/* mode change */
+enum scale_t {
+    SCALE_TRIM,
+    SCALE_ASPECT
+} scale_option; 
+
+int display_date = 1;
+IDirectFBSurface *primary, *image, *tmp;
+shjpeg_context_t *context = NULL;
+
+char *update_mode(int code)
+{
+    static char str[128];
+    char *rc = str;
+
+    switch(code) {
+    case 0x31:
+    	snprintf(str, sizeof(str), "H/W acceleration on");
+    	DFBCHK(primary->DisableAcceleration(primary, DFXL_NONE));
+    	DFBCHK(tmp->DisableAcceleration(tmp, DFXL_NONE));
+    	if (context)
+    	    context->libjpeg_disabled = 0;
+    	break;
+
+    case 0x32:
+    	snprintf(str, sizeof(str), "H/W acceleration off");
+    	DFBCHK(primary->DisableAcceleration(primary, DFXL_ALL));
+    	DFBCHK(tmp->DisableAcceleration(tmp, DFXL_ALL));
+    	if (context)
+    	    context->libjpeg_disabled = -1;
+    	break;
+
+    case 0x33:
+    	snprintf(str, sizeof(str), "Date on");
+    	display_date = 1;
+    	break;
+
+    case 0x34:
+    	snprintf(str, sizeof(str), "Date off");
+    	display_date = 0;
+    	break;
+
+    case 0x35:
+    	snprintf(str, sizeof(str), "Fit to screen");
+    	scale_option = SCALE_TRIM;
+    	break;
+    	
+    case 0x36:
+    	snprintf(str, sizeof(str), "Keep aspect");
+    	scale_option = SCALE_ASPECT;
+    	break;
+
+    default:
+    	rc = NULL;
+    }
+
+    return rc;
+}
+
 int main(int argc, char *argv[])
 {
     int verbose = 1;
@@ -80,10 +139,10 @@ int main(int argc, char *argv[])
     struct dirent *dirent;
 
     DFBSurfaceDescription dsc;
-    IDirectFBSurface *primary, *image, *tmp;
     DFBRectangle dest_rect;
     DFBSurfacePixelFormat pixformat;
     IDirectFBFont *font;
+    IDirectFBEventBuffer *events;
     DFBFontDescription fdsc;
     double scale_w, scale_h, scaler;
     int target_w, target_h;
@@ -91,7 +150,6 @@ int main(int argc, char *argv[])
     int screen_width;
     int screen_height;
 
-    shjpeg_context_t *context;
     shjpeg_pixelformat format;
     int pitch;
     int offset;
@@ -105,12 +163,9 @@ int main(int argc, char *argv[])
     char *fontfile = "/usr/local/share/directfb-examples/fonts/decker.ttf";
     int rc = 0;
     int duration = 1;
+    time_t now;
 
-    enum scale_t {
-	SCALE_TRIM,
-	SCALE_ASPECT
-    } scale_option = SCALE_ASPECT;
-
+    scale_option = SCALE_ASPECT;
     argv0 = argv[0];
 
     /* Initialize DirectFB */
@@ -176,6 +231,9 @@ int main(int argc, char *argv[])
     DFBCHK(primary->GetSize(primary, &screen_width, &screen_height));
     DFBCHK(primary->Clear(primary, 0, 0, 0, 0));
     DFBCHK(primary->Flip(primary, NULL, DSFLIP_NONE));
+
+    /* prepare events */
+    DFBCHK(dfb->CreateInputEventBuffer(dfb, DICAPS_KEYS, DFB_FALSE, &events));
 
     /* load font */
     fdsc.flags = DFDESC_HEIGHT;
@@ -328,17 +386,20 @@ int main(int argc, char *argv[])
 	    DFBCHK(primary->Blit(primary, tmp, NULL, 0, 0));
 
 	    /* render date & time */
-	    time(&ct);
-	    tp = localtime(&ct);
-	    strftime(str, sizeof(str), "%Y/%m/%d %R", tp);
-	    DFBCHK(primary->SetColor(primary, 0x20, 0x20, 0x20, 0xff));
-	    DFBCHK(primary->
-		   DrawString(primary, str, -1, screen_width - 20,
-			      screen_height, DSTF_BOTTOMRIGHT));
-	    DFBCHK(primary->SetColor(primary, 0xf0, 0xf0, 0xf3, 0xff));
-	    DFBCHK(primary->
-		   DrawString(primary, str, -1, screen_width - 21,
-			      screen_height - 1, DSTF_BOTTOMRIGHT));
+	    if (display_date) {
+		time(&ct);
+		tp = localtime(&ct);
+		strftime(str, sizeof(str), "%Y/%m/%d %R", tp);
+		DFBCHK(primary->SetColor(primary, 0x20, 0x20, 0x20, 0xff));
+		DFBCHK(primary->
+		       DrawString(primary, str, -1, screen_width - 20,
+				  screen_height, DSTF_BOTTOMRIGHT));
+		DFBCHK(primary->SetColor(primary, 0xf0, 0xf0, 0xf3, 0xff));
+		DFBCHK(primary->
+		       DrawString(primary, str, -1, screen_width - 21,
+			          screen_height - 1, DSTF_BOTTOMRIGHT));
+
+	    }
 
 	    /* flip */
 	    DFBCHK(primary->Flip(primary, NULL, DSFLIP_NONE));
@@ -349,7 +410,24 @@ int main(int argc, char *argv[])
 	DFBCHK(primary->ReleaseSource(primary));
 
 	/* wait for the next */
-	sleep(duration);
+	now = time(NULL);
+	do {
+	    DFBInputEvent evt;
+
+	    if (events->WaitForEventWithTimeout(events, duration, 0) != 
+		DFB_TIMEOUT) {
+		DFBCHK(events->GetEvent(events, DFB_EVENT(&evt)));
+	    	if (evt.type == DIET_KEYPRESS) {
+	    	    char *str = update_mode(evt.key_symbol);
+
+	    	    if (str) {
+	    	    	DFBCHK(primary->SetColor(primary, 196,209,210,255));
+	    	    	DFBCHK(primary->DrawString(primary, str, -1, 10, 10, DSTF_TOPLEFT));
+	    	    	DFBCHK(primary->Flip(primary, NULL, DSFLIP_NONE));
+	    	    }
+	    	}
+	    }
+	} while(now + duration >= time(NULL));
     }
 
     fprintf(stderr, "done\n");

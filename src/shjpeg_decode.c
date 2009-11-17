@@ -741,16 +741,17 @@ shjpeg_decode_run(shjpeg_context_t	*context,
     // Reset libjpeg used flag to zero
     context->libjpeg_used = 0;
 
-    if (!context->mode444) {
+    if ((!context->mode444) && (context->libjpeg_disabled >= 0)) {
 	if (context->sops->init)
 	    context->sops->init(context->private);
 
 	ret = decode_hw(data, context, format, phys, width, height, pitch);
     }
 
-    if ((!context->libjpeg_disabled) && (ret)) {
+    if ((context->libjpeg_disabled <= 0) && (ret)) {
 	int fd;
-	int len = _PAGE_ALIGN(SHJPEG_PF_PLANE_MULTIPLY(format, height) * pitch);
+	int len = _PAGE_ALIGN(SHJPEG_PF_PLANE_MULTIPLY(format, height) * pitch) + _PAGE_SIZE;
+	void *offsetaddr;
 
 	fd = open( "/dev/mem", O_RDWR | O_SYNC );
 	if (fd < 0) {
@@ -758,14 +759,16 @@ shjpeg_decode_run(shjpeg_context_t	*context,
 	    return -1;
 	}
 
-	addr = mmap( NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd, phys );
+	addr = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED, fd,
+		    phys & ~(_PAGE_SIZE - 1));
 	if (addr == MAP_FAILED) {
 	    D_PERROR( "libshjpeg: Could not map /dev/mem at 0x%08lx (length %d)!", phys, len );
 	    close(fd);
 	    return -1;
 	}
 
-	ret = decode_sw(context, format, addr, width, height, pitch);
+	offsetaddr = addr + (phys & (_PAGE_SIZE - 1));
+	ret = decode_sw(context, format, offsetaddr, width, height, pitch);
 
 	// set the flag to notify the use of libjpeg
 	if (!ret)
