@@ -23,7 +23,7 @@
 #ifndef __shjpeg_h__
 #define __shjpeg_h__
 
-#include "shjpeg_types.h"
+#include <shjpeg/shjpeg_types.h>
 
 /**
  * \file shjpeg.h
@@ -89,6 +89,9 @@ void shjpeg_shutdown(shjpeg_context_t *context);
  * shjpeg_decode() or shjpeg_encode(). As the memory is made
  * accessible from user space only after calling shjpeg_init(), you cannot
  * call this function before calling shjpeg_init().
+ *
+ * \param context [in] a pointer to the JPEG image context.
+ *        Pass the value set by shjpeg_open().
  *
  * \param phys start address of physical contiguous memory is set.
  *
@@ -182,11 +185,8 @@ void shjpeg_decode_shutdown(shjpeg_context_t *context);
  *
  * Image passed to this function is encoded and written as a file.
  *
- * \param filename name of the output file.
- *
- * \param rect set always NULL for now. Not supported yet.
- *
- * \param clip set always NULL for now. Not supported yet.
+ * \param context [in] a pointer to the JPEG image context to be
+ *        encoded. Pass the value set by shjpeg_open().
  *
  * \param format pixelformat of the image. Only NV12 and NV16 are
  *	  supported.

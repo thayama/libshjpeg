@@ -31,7 +31,7 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 
-#include "shjpeg.h"
+#include <shjpeg/shjpeg.h>
 #include "shjpeg_internal.h"
 #include "shjpeg_jpu.h"
 

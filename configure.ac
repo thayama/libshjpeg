@@ -2,8 +2,8 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.63])
-AC_INIT([libshjpeg], [1.0.0], [taki@igel.co.jp])
-AC_SUBST([LIBSHJPEG_VERSION], [1:0:0])
+AC_INIT([libshjpeg], [1.1.0], [taki@igel.co.jp])
+AC_SUBST([LIBSHJPEG_VERSION], [1:1:0])
 
 AM_INIT_AUTOMAKE([-Wall -Werror])
 AC_CONFIG_SRCDIR([src/shjpeg_decode.c])
@@ -19,6 +19,14 @@ AM_PROG_CC_C_O
 AC_PROG_INSTALL
 AC_PROG_LIBTOOL
 AC_C_INLINE
+
+# Check for external programs
+AC_CHECK_PROG(HAVE_PKG_CONFIG, pkg-config, yes)
+AC_CHECK_PROG(HAVE_DOXYGEN, doxygen, true, false)
+AM_CONDITIONAL(HAVE_DOXYGEN, $HAVE_DOXYGEN)
+if test $HAVE_DOXYGEN = "false"; then
+	AC_MSG_WARN([*** doxygen not found, docs will not be built])
+fi
 
 # Checks for libraries.
 AC_CHECK_LIB([jpeg], [jpeg_std_error],, [AC_MSG_ERROR([libjpeg not found!])])
@@ -47,5 +55,9 @@ AC_CHECK_FUNCS([getpagesize memset munmap strerror])
 AC_CONFIG_FILES([Makefile
                  src/Makefile
                  doc/Makefile
-		 tests/Makefile])
+		 doc/Doxyfile
+		 tests/Makefile
+		 include/Makefile
+		 include/shjpeg/Makefile
+		 shjpeg.pc])
 AC_OUTPUT

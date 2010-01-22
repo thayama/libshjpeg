@@ -36,7 +36,7 @@
 #include <asm/types.h>
 #include <linux/videodev2.h>
 
-#include "shjpeg.h"
+#include <shjpeg/shjpeg.h>
 
 #define MJPEG_BOUNDARY "++++++++"
 

@@ -3,7 +3,7 @@
 #
 #
 AM_CFLAGS = -Wall -Werror
-AM_CPPFLAGS = -I$(srcdir)/../src
+AM_CPPFLAGS = -I$(top_srcdir)/include
 
 bin_PROGRAMS = shjpegtest v2mjpeg shjpegshow
 

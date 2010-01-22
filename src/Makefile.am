@@ -1,16 +1,14 @@
 #
 #
 #
+
+AM_CPPFLAGS = $(INCLTDL) -I$(top_srcdir)/include
 AM_CFLAGS = -Wall -Werror
 
 lib_LTLIBRARIES = libshjpeg.la
 
-include_HEADERS = \
-	shjpeg.h \
-	shjpeg_types.h 
-
 libshjpeg_la_LIBADD = $(LIBS)
-libshjpeg_la_LDFLAGS = -version-info $(LIBSHJPEG_VERSION)
+libshjpeg_la_LDFLAGS = -release $(LIBSHJPEG_VERSION)
 
 libshjpeg_la_SOURCES = \
 	shjpeg_common.c \

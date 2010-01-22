@@ -8,7 +8,7 @@
 #include <getopt.h>
 #include <time.h>
 
-#include "shjpeg.h"
+#include <shjpeg/shjpeg.h>
 #include "directfb.h"
 #include "core/gfxcard.h"
 
@@ -311,7 +311,7 @@ int main(int argc, char *argv[])
 
 	/* decode */
 	fprintf(stderr,
-		"start decoding: phys=%08x(%x), pitch=%d, %dx%d\n",
+		"start decoding: phys=%08lx(%x), pitch=%d, %dx%d\n",
 		jpeg_phys, offset, pitch, context->width, context->height);
 	format = (context->mode420) ? SHJPEG_PF_NV12 : SHJPEG_PF_NV16;
 	if (shjpeg_decode_run(context, format, jpeg_phys,

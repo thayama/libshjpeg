@@ -32,7 +32,7 @@
 #include <sys/mman.h>
 #include <sys/param.h>
 
-#include "shjpeg.h"
+#include <shjpeg/shjpeg.h>
 #include "shjpeg_internal.h"
 #include "shjpeg_jpu.h"
 
@@ -267,7 +267,8 @@ uio_init(shjpeg_context_t *context, shjpeg_internal_t *data)
 
 	if (write(data->jpu_uio_fd, &n, sizeof(n)) < sizeof(n)) {
 	    D_PERROR("libshjpeg: unblock JPU IRQ failed.");
-	    lockf(data->jpu_uio_fd, F_ULOCK, 0);
+	    if (lockf(data->jpu_uio_fd, F_ULOCK, 0) < 0)
+		D_PERROR("libshjpeg: may have failed to unlock JPU.");
 	    goto error;
 	}
 
@@ -285,7 +286,8 @@ uio_init(shjpeg_context_t *context, shjpeg_internal_t *data)
 
 	if (write(data->veu_uio_fd, &n, sizeof(n)) < sizeof(n)) {
 	    D_PERROR("libshjpeg: unblock VEU IRQ failed.");
-	    lockf(data->veu_uio_fd, F_ULOCK, 0);
+	    if (lockf(data->veu_uio_fd, F_ULOCK, 0) < 0)
+		D_PERROR("libshjpeg: may have failed to unlock VEU.");
 	    goto error;
 	}
 

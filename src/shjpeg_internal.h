@@ -23,7 +23,7 @@
 #ifndef __shjpeg_internal_h__
 #define __shjpeg_internal_h__
 
-#include "shjpeg_types.h"
+#include <shjpeg/shjpeg_types.h>
 #include "shjpeg_utils.h"
 
 /*

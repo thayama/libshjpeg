@@ -26,7 +26,7 @@
 #include <getopt.h>
 #include <sys/mman.h>
 
-#include "shjpeg.h"
+#include <shjpeg/shjpeg.h>
 
 void
 write_ppm(const char    *filename,
