@@ -1,0 +1,23 @@
+.TH "v2mjpeg" 1 "Nov 2009" "SH JPEG" "Linux-SH Multimedia"
+
+.SH NAME
+v2mjpeg \- Encode frames captured via V4L2 device and stream as Motion JPEG.
+
+.SH SYNOPSIS
+
+.B \fBv2mjpeg\fR \fI[OPTIONS]\fR \fI[<v4l2 device>]\fR
+
+.SH DESCRPITOIN
+.B v2mjpeg
+Encodes frames caputred via V4L2 device, and stream as Motion JPEG.
+Default is to catpure from /dev/video0, and then output to stdout
+as a MIME encoded multipart data.
+You may use sighttpd (http://github.com/kfish/sighttpd) in order to
+transmit via HTTP, and browse on Firefox.
+
+See \fB--help\fR for more details.
+
+.SH AUTHORS
+shjpegshow was written by Takanari Hayama
+
+Please report bugs to <taki@igel.co.jp>
