@@ -128,8 +128,9 @@ void print_usage() {
 	    "  -f, --show-fps                     show fps.\n"
 	    "  -s <w>x<h>, --size=<w>x<h>         capture size.\n"
 	    "  -o [<prefix>], --output[=<prefix>] dump to the file.\n"
+	    "  -S, --single			  single buffered (default: double).\n"
 	    "  -c <count>, --count=<count>        # of JPEGs to capture.\n"
-	    "                                     (Default: infinite)\n"
+	    "                                     (Default: 0(=infinite))\n"
 	    "  -i <n>, --interval=<n>             xmit at <n> msec interval. (Default: 0msec)\n");
 }
 
@@ -184,6 +185,7 @@ int main(int argc, char *argv[])
     int num_count = 0;
     unsigned int width = 640;
     unsigned int height = 480;
+    int reqbuf_count = 2;
 
     argv0 = argv[0];
 
@@ -199,10 +201,11 @@ int main(int argc, char *argv[])
 	    {"count", 1, 0, 'c'},
 	    {"size", 1, 0, 's'},
 	    {"interval", 1, 0, 'i'},
+	    {"single", 0, 0, 'S'},
 	    {0, 0, 0, 0}
 	};
 
-	if ((c = getopt_long(argc, argv, "hvqfo::c:i:s:",
+	if ((c = getopt_long(argc, argv, "hvqfo::c:i:s:S",
 			     long_options, &option_index)) == -1)
 	    break;
 
@@ -251,6 +254,10 @@ int main(int argc, char *argv[])
 	    interval = strtol(optarg, NULL, 0);
 	    break;
 
+	case 'S':
+	    reqbuf_count = 1;
+	    break;
+
 	default:
 	    fprintf(stderr, "unknown option 0%x.\n", c);
 	    print_usage();
@@ -290,6 +297,7 @@ int main(int argc, char *argv[])
     fmt.fmt.pix.pixelformat = v4l2_fourcc('N', 'V', '1', '6');
     fmt.fmt.pix.width = width;
     fmt.fmt.pix.height = height;
+    fmt.fmt.pix.field = V4L2_FIELD_NONE;
     if (ioctl(vd, VIDIOC_S_FMT, &fmt) < 0) {
     	fprintf(stderr, "VIDIOC_S_FMT failed - %08x, %dx%d\n",
 		fmt.fmt.pix.pixelformat, 
@@ -312,7 +320,7 @@ int main(int argc, char *argv[])
     memset(&reqbuf, 0, sizeof(reqbuf));
     reqbuf.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
     reqbuf.memory = V4L2_MEMORY_USERPTR;
-    reqbuf.count = 2;
+    reqbuf.count = reqbuf_count;
 
     if (ioctl(vd, VIDIOC_REQBUFS, &reqbuf) < 0) {
 	fprintf(stderr, "ioctl REQBUFS failed\n");
@@ -321,8 +329,9 @@ int main(int argc, char *argv[])
     if (!quiet)
     	fprintf(stderr, "VIDIOC_REQBUFS done\n");
 
-    if (reqbuf.count < 2) {
-	fprintf(stderr, "could only get %d buffers\n", reqbuf.count);
+    if (reqbuf.count < reqbuf_count) {
+	fprintf(stderr, "could only get %d buffers (%d requested)\n",
+		reqbuf.count, reqbuf_count);
 	return 1;
     }
 
@@ -348,6 +357,8 @@ int main(int argc, char *argv[])
 	/* queue buffer */
 	if (ioctl(vd, VIDIOC_QBUF, &buffer) < 0) {
 	    perror("ioctl - VIDIOC_QBUF");
+	    fprintf(stderr, "buffer: length=%d, ptr=%08lx/%08lx\n",
+	    	    buffer.length, buffer.m.userptr, jpeg_phys + i * bufsiz);
 	    return 1;
 	}
 
@@ -360,8 +371,8 @@ int main(int argc, char *argv[])
 	/* debug */
 	if (!quiet)
 	    fprintf(stderr,
-		    "buffer %d: addr=%08x/%08lx, size=%08x\n", 
-		    i, buffer.m.offset, buffers[i].start, buffer.length);
+		    "buffer %d: addr=%08lx/%08lx, size=%08x\n", 
+		    i, buffer.m.userptr, buffers[i].start, buffer.length);
     }
 
     /* start capturing */
