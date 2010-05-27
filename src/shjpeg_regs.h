@@ -51,6 +51,7 @@
 #define VEU_VEVTR	0x00a4
 #define VEU_VSTAR	0x00b0
 #define VEU_VBSRR	0x00b4
+#define VEU_VRPBR	0x00c8	/* added in VEU3F - SH7724 */
 
 /*
  * JPU Registers
