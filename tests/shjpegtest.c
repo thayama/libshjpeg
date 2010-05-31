@@ -28,6 +28,155 @@
 
 #include <shjpeg/shjpeg.h>
 
+/* for /dev/mem */
+static int memfd = -1;
+
+/* for BMP bitmap */
+
+typedef struct {
+    /* BITMAPFILEHEADER (except 2byte TYPE info) */
+    uint32_t	bmp_size;
+    uint32_t	dummy;
+    uint32_t	bmp_offset;
+
+    /* BITMAPV4HEADER */
+    uint32_t	header_size;
+    int32_t	width;
+    int32_t	height;
+    uint16_t	num_planes;
+    uint16_t	bpp;
+    uint32_t	compression;
+    uint32_t	raw_size;
+    int32_t	hres;
+    int32_t	vres;
+    uint32_t	palette_size;
+    uint32_t	important_colors;
+    uint32_t	red_mask;
+    uint32_t	green_mask;
+    uint32_t	blue_mask;
+    uint32_t	alpha_mask;
+    uint32_t	cstype;
+    uint32_t	endpoints[9];
+    uint32_t	gamma_red;
+    uint32_t	gamma_green;
+    uint32_t	gamma_blue;
+} bmp_header_t;
+
+void *map_image(unsigned long phys, int pitch, int height, int *size)
+{
+    int	page_sz = getpagesize() - 1;
+
+    *size = ((pitch * height) + page_sz) & ~page_sz;
+
+    if (memfd < 0) {
+	if ((memfd = open("/dev/mem", O_RDWR)) < 0) {
+	    perror("map_image(): opening /dev/mem -");
+	    return MAP_FAILED;
+	}
+    }
+
+    // map
+    return mmap(NULL, *size, PROT_READ | PROT_WRITE, MAP_SHARED, memfd, phys);
+}
+
+void munmap_image(void *mem, int *size)
+{
+    munmap(mem, *size);
+}
+
+void write_bmp(const char *filename, int bpp,
+	       unsigned long phys, int pitch, int width, int height)
+{
+    bmp_header_t bmp_header;
+    int h, w, bw, size, raw_size, stride;
+    void *mem, *ptr;
+    FILE *file;
+    char *buffer = NULL, tmp;
+
+    /* mamp memory */
+    mem = map_image(phys, pitch, height, &size);
+    if (mem == MAP_FAILED) {
+	perror("write_bmp(): mmaping /dev/mem -");
+	return;
+    }
+
+    /* Open BMP file to write */
+    file = fopen(filename, "wb");
+    if (!file) {
+	perror("write_bmp(): opening file to write - ");
+	munmap_image(mem, &size);
+	return;
+    }
+    
+    /* create BMP header */
+    memset((void*)&bmp_header, 0, sizeof(bmp_header_t));
+    stride = (((width * bpp) + 0x1f) & ~0x1f) >> 3;
+    raw_size = stride * height;
+printf("width=%d, stride=%d, pitch=%d, height=%d, size=%d(%x)\n",
+	width, stride, pitch, height, raw_size, raw_size);
+    bmp_header.bmp_size    = 2 + sizeof(bmp_header_t) + raw_size;
+    bmp_header.bmp_offset  = 2 + sizeof(bmp_header_t);
+    bmp_header.header_size = sizeof(bmp_header_t) - 12;
+    bmp_header.width	   = width;
+    bmp_header.height      = -height;
+    bmp_header.num_planes  = 1;
+    bmp_header.bpp	   = bpp;
+    bmp_header.raw_size	   = raw_size;
+
+    /* mask */
+    switch(bpp) {
+    case 16:
+	bmp_header.red_mask   = 0xf800;
+	bmp_header.green_mask = 0x07e0;
+	bmp_header.blue_mask  = 0x001f;
+	bmp_header.compression = 3;
+	buffer = NULL;
+	break;
+    case 24:
+	bmp_header.red_mask   = 0x00ff0000;
+	bmp_header.green_mask = 0x0000ff00;
+	bmp_header.blue_mask  = 0x000000ff;
+	bmp_header.compression = 0;
+	buffer = malloc(stride);
+	break;
+    }    
+
+    /* Write BMP header */
+    fprintf(file, "BM");
+    fwrite(&bmp_header, 1, sizeof(bmp_header), file);
+
+    /* Write data */
+    bw = bpp >> 3;
+//    mem += (height - 1) * pitch;
+    ptr = mem;
+    for (h = 0; h < height; h++) {
+	switch(bpp) {
+	case 16:
+	    buffer = ptr;
+	    break;
+	case 24:
+	    memcpy(buffer, ptr, stride);
+	    for (w = 0; w < width; w++) {
+		tmp = buffer[w * 3 + 2];
+		buffer[w * 3 + 2] = buffer[w * 3];
+		buffer[w * 3] = tmp;;
+	    }
+	    break;
+	}
+	fwrite(buffer, 1, stride, file);
+	ptr += pitch;
+    }
+
+    /* done */
+    fclose(file);
+
+    if (bpp == 24)
+	free(buffer);
+
+    /* unmap memory */
+    munmap_image(mem, &size);
+}
+
 void
 write_ppm(const char    *filename,
 	  unsigned long  phys,
@@ -35,45 +184,39 @@ write_ppm(const char    *filename,
 	  unsigned int   width,
 	  unsigned int   height)
 {
-    int i, fd, size;
+    int i, size;
     void *mem;
     FILE *file;
-    int	  page_sz = getpagesize() - 1;
 
-    size = ((pitch * height) + page_sz) & ~page_sz;
-
-    fd = open("/dev/mem", O_RDWR);
-    if (fd < 0) {
-	perror("write_ppm(): opening /dev/mem -");
-	return;
-    }
-
-    // map
-    mem = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, phys);
+    /* mamp memory */
+    mem = map_image(phys, pitch, height, &size);
     if (mem == MAP_FAILED) {
 	perror("write_ppm(): mmaping /dev/mem -");
-	close(fd);
 	return;
     }
 
-    // Open PPM file to write
+    /* Open PPM file to write */
     file = fopen(filename, "wb");
     if (!file) {
-	perror("write_ppmn(): opening file to write - ");
-	munmap(mem, size);
+	perror("write_ppm(): opening file to write - ");
+	munmap_image(mem, &size);
 	return;
     }
 
-    // Write PPM header
+    /* Write PPM header */
     fprintf(file, "P6\n%d %d\n255\n", width, height);
 
+    /* Write data */
     for (i=0; i<height; i++) {
 	fwrite(mem, 3, width, file);
 	mem += pitch;
     }
+
+    /* done */
     fclose(file);
-    munmap(mem, size);
-    close(fd);
+
+    /* unmap memory */
+    munmap_image(mem, &size);
 }
 
 
@@ -141,7 +284,9 @@ print_usage() {
 	    "  -h, --help                this message.\n"
 	    "  -v, --verbose             libshjpeg verbose output.\n"
 	    "  -q, --quiet		 no messages from this program.\n"
-	    "  -d[<ppm>], --dump[=<ppm>] dump intermediate image in ppm (default: test.ppm).\n"
+	    "  -d[<ppm>], --dump[=<ppm>] dump decoded image in PPM (default: test.ppm).\n"
+	    "  -D[<bmp>], --bmp[=<bmp>]  dump decoded image in BMP (default: test.bmp).\n"
+	    "  -b <bpp>, --bpp=<bpp>     Bits-per-pixel for BMP image (default: 24)"
 	    "  -p <phys>, --phys=<phys>  specify physical memory to use.\n"
 	    "  -n, --no-libjpeg          disable fallback to libjpeg.\n");
 }
@@ -158,9 +303,12 @@ main(int argc, char *argv[])
     int			   fd;
     shjpeg_pixelformat	   format;
     char		   filename[1024];
-    char		  *input, *output, *dumpfn = "test.ppm";
+    char		  *input, *output;
+    char		  *dumpfn = "test.ppm";
+    char		  *dumpfn2 = "test.bmp";
     int			   verbose = 0;
     int			   dump = 0;
+    int			   bpp = 24;
     int			   disable_libjpeg = 0;
     int			   quiet = 0;
 
@@ -174,12 +322,14 @@ main(int argc, char *argv[])
 	    {"verbose", 0, 0, 'v'},
 	    {"quiet", 0, 0, 'q'},
 	    {"dump", 2, 0, 'd'},
+	    {"bmp", 2, 0, 'D'},
+	    {"bpp", 1, 0, 'b'},
 	    {"phys", 1, 0, 'p'},
 	    {"no-libjpeg", 0, 0, 'n'},
 	    {0, 0, 0, 0}
 	};
 	
-	if ((c = getopt_long(argc, argv, "hvd::nqp:",
+	if ((c = getopt_long(argc, argv, "hvd::D::b:nqp:",
 			     long_options, &option_index)) == -1)
 	    break;
 
@@ -196,6 +346,16 @@ main(int argc, char *argv[])
 	    dump = 1;
 	    if (optarg)
 		dumpfn = optarg;
+	    break;
+
+	case 'D':
+	    dump = 2;
+	    if (optarg)
+		dumpfn2 = optarg;
+	    break;
+
+	case 'b':
+	    bpp =  strtol(optarg, NULL, 0);
 	    break;
 
 	case 'n':
@@ -269,8 +429,25 @@ main(int argc, char *argv[])
 	       (context->mode420) ? "2:0" : 
 	       ((context->mode444) ? "4:4" : "2:2?"));
 
-    format =(dump) ? SHJPEG_PF_RGB24 :
-	(!context->mode420 ? SHJPEG_PF_NV16 : SHJPEG_PF_NV12);
+    if (dump) {
+	/* When PPM is requested, bpp must be 24 */
+	if (dump == 1)
+	    bpp = 24;
+	
+	switch(bpp) {
+	case 24:
+	    format = SHJPEG_PF_RGB24;
+	    break;
+	case 16:
+	    format = SHJPEG_PF_RGB16;
+	    break;
+	default:
+	    fprintf(stderr, "unsupported bpp (%d)\n", bpp);
+	    return 1;
+	}
+    } else {
+	format = !context->mode420 ? SHJPEG_PF_NV16 : SHJPEG_PF_NV12;
+    }
     pitch  = (SHJPEG_PF_PITCH_MULTIPLY(format) * context->width + 7) & ~7;
 
     /* start decoding */
@@ -279,32 +456,40 @@ main(int argc, char *argv[])
 	fprintf(stderr, "shjpeg_deocde_run() failed\n");
 	return 1;
     }
-    if (!quiet)
+
+    if (!quiet) {
 	printf("Decoded by: %s\n",
 	       context->libjpeg_used ? "libjpeg" : "JPU");
+    }
 
     /* shutdown decoder */
     shjpeg_decode_shutdown(context);
 
     /* get framebuffer information */
     if (phys == SHJPEG_USE_DEFAULT_BUFFER) {
-	   shjpeg_get_frame_buffer(context, &jpeg_phys, &jpeg_virt, &jpeg_size);
-	   if (!quiet) {
-		printf("jpu uio: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
-			jpeg_phys, jpeg_virt, jpeg_size );
+	shjpeg_get_frame_buffer(context, &jpeg_phys, &jpeg_virt, &jpeg_size);
+	if (!quiet) {
+	    printf("jpu uio: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
+		   jpeg_phys, jpeg_virt, jpeg_size );
 	   }
     } else {
    	jpeg_phys = phys; 
     }
 
     /* dump intermediate file */
-    if (dump) {
-	// Use RGB24 format to dump image properly
+    switch(dump) {
+    case 2:
+	write_bmp(dumpfn2, bpp, jpeg_phys, pitch, 
+		  context->width, context->height);
+	break;
+
+    case 1:
 	write_ppm(dumpfn, jpeg_phys, pitch, context->width, context->height);
     }
 
-    /* now prep to re-encode */
     close(fd);
+
+    /* now prep to re-encode */
     if ((fd = open(output, O_RDWR | O_CREAT, 0644)) < 0) {
 	fprintf(stderr, "%s: Can't open '%s'.\n", argv[0], output);
 	return 1;
