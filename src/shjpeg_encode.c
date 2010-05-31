@@ -34,6 +34,7 @@
 #include <shjpeg/shjpeg.h>
 #include "shjpeg_internal.h"
 #include "shjpeg_jpu.h"
+#include "shjpeg_veu.h"
 
 static inline int
 coded_data_amount(shjpeg_internal_t *data)
@@ -83,33 +84,33 @@ encode_hw(shjpeg_internal_t	*data,
     */
 
     /* Init VEU transformation control (format conversion). */
-    if (format != SHJPEG_PF_NV16)
+    if (format == SHJPEG_PF_NV12)
 	mode420 = true;
     else
 	vtrcr |= (1 << 22);
 
     switch (format) {
     case SHJPEG_PF_NV12:
-	vswpin = 0x06; //0x07
+	vswpin = 0x66;
 	break;
 
     case SHJPEG_PF_NV16:
-	vswpin  = 0x07;
+	vswpin  = 0x77;
 	vtrcr	 |= (1 << 14);
 	break;
 
     case SHJPEG_PF_RGB16:
-	vswpin  = 0x06;
+	vswpin  = 0x76;
 	vtrcr	 |= (3 << 8) | 3;
 	break;
 
     case SHJPEG_PF_RGB32:
-	vswpin  = 0x04;
+	vswpin  = 0x44;
 	vtrcr	 |= (0 << 8) | 3;
 	break;
 
     case SHJPEG_PF_RGB24:
-	vswpin  = 0x07;
+	vswpin  = 0x77;
 	vtrcr	 |= (2 << 8) | 3;
 	break;
 
@@ -183,6 +184,8 @@ encode_hw(shjpeg_internal_t	*data,
 	shjpeg_jpu_setreg32(data, JPU_JIFESMW,  pitch);
     }
     else {
+	shjpeg_veu_t veu;
+
 	jpeg.flags |= SHJPEG_JPU_FLAG_CONVERT;
 	jpeg.height = height;
 
@@ -207,35 +210,35 @@ encode_hw(shjpeg_internal_t	*data,
 	shjpeg_jpu_setreg32(data, JPU_JIFESMW,  
 			    SHJPEG_JPU_LINEBUFFER_PITCH);
 
-	/* FIXME: Setup VEU for conversion/scaling (from surface to line buffer). */
-	shjpeg_veu_setreg32(data, VEU_VESTR, 0x00000000);
-	while(shjpeg_veu_getreg32(data, VEU_VESTR))
-	    usleep(1);
-	shjpeg_veu_setreg32(data, VEU_VESWR, pitch);
-	shjpeg_veu_setreg32(data, VEU_VESSR, 
-			    (SHJPEG_JPU_LINEBUFFER_HEIGHT << 16) | context->width);
-	shjpeg_veu_setreg32(data, VEU_VBSSR, 16);
-	shjpeg_veu_setreg32(data, VEU_VEDWR, SHJPEG_JPU_LINEBUFFER_PITCH);
-	shjpeg_veu_setreg32(data, VEU_VDAYR, data->jpeg_lb1);
-	shjpeg_veu_setreg32(data, VEU_VDACR, 
-			    data->jpeg_lb1 + SHJPEG_JPU_LINEBUFFER_SIZE_Y);
-	shjpeg_veu_setreg32(data, VEU_VSAYR, phys);
-	shjpeg_veu_setreg32(data, VEU_VSACR, phys + pitch * height);
-	shjpeg_veu_setreg32(data, VEU_VTRCR, vtrcr);
+	/* Setup VEU for conversion/scaling (from surface to line buffer). */
+	memset((void*)&veu, 0, sizeof(shjpeg_veu_t));
 
+	/* source */
+	veu.src.width	= context->width;
+	veu.src.height	= SHJPEG_JPU_LINEBUFFER_HEIGHT;
+	veu.src.pitch	= pitch;
+	veu.src.yaddr	= phys;
+	veu.src.caddr	= phys + pitch * height;
+
+	/* destination */
+	veu.dst.width	= context->width;
+	veu.dst.height	= context->height;
+	veu.dst.pitch	= SHJPEG_JPU_LINEBUFFER_PITCH;
+	veu.dst.yaddr	= data->jpeg_lb1;
+	veu.dst.caddr	= data->jpeg_lb1 + SHJPEG_JPU_LINEBUFFER_SIZE_Y;
+
+	/* transformation parameter */
+	veu.vbssr	= 16;
+	veu.vtrcr	= vtrcr;
+	veu.vswpr	= vswpin;
+
+	/* set VEU */
+	shjpeg_veu_init(data, &veu);
+
+	/* configs */
 	jpeg.sa_y = phys;
 	jpeg.sa_c = phys + pitch * height;
 	jpeg.sa_inc = pitch * 16;
-
-	shjpeg_veu_setreg32(data, VEU_VRFCR, 0x00000000);
-	shjpeg_veu_setreg32(data, VEU_VRFSR, 
-			    (SHJPEG_JPU_LINEBUFFER_HEIGHT << 16) | context->width);
-
-	shjpeg_veu_setreg32(data, VEU_VENHR, 0x00000000);
-	shjpeg_veu_setreg32(data, VEU_VFMCR, 0x00000000);
-	shjpeg_veu_setreg32(data, VEU_VAPCR, 0x00000000);
-	shjpeg_veu_setreg32(data, VEU_VSWPR, 0x00000070 | vswpin);
-	shjpeg_veu_setreg32(data, VEU_VEIER, 0x00000101);
     }
 
     /* Init quantization tables. */

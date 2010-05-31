@@ -13,10 +13,12 @@ libshjpeg_la_LDFLAGS = -release $(LIBSHJPEG_VERSION)
 libshjpeg_la_SOURCES = \
 	shjpeg_common.c \
 	shjpeg_config.c \
+	shjpeg_veu.c \
 	shjpeg_jpu.c \
 	shjpeg_decode.c \
 	shjpeg_encode.c \
 	shjpeg_internal.h \
 	shjpeg_utils.h \
 	shjpeg_regs.h \
+	shjpeg_veu.h \
 	shjpeg_jpu.h

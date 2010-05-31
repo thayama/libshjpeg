@@ -35,6 +35,7 @@
 #include <shjpeg/shjpeg.h>
 #include "shjpeg_internal.h"
 #include "shjpeg_jpu.h"
+#include "shjpeg_veu.h"
 
 /*
  * Decode using H/W
@@ -194,6 +195,8 @@ decode_hw(shjpeg_internal_t	*data,
 	shjpeg_jpu_setreg32(data, JPU_JIFDDMW,  pitch);
     }
     else {
+	shjpeg_veu_t veu;
+
 	jpeg.flags |= SHJPEG_JPU_FLAG_CONVERT;
 
 	/* Setup JPU for decoding in line buffer mode. */
@@ -219,26 +222,27 @@ decode_hw(shjpeg_internal_t	*data,
 			     SHJPEG_JPU_LINEBUFFER_PITCH );
 
 	/* Setup VEU for conversion/scaling (from line buffer to surface). */
-	shjpeg_veu_setreg32( data, VEU_VBSRR, 0x00000100 );
-	shjpeg_veu_setreg32( data, VEU_VESTR, 0x00000000 );
-	shjpeg_veu_setreg32( data, VEU_VESWR, SHJPEG_JPU_LINEBUFFER_PITCH );
-	shjpeg_veu_setreg32( data, VEU_VESSR, 
-			     (context->height << 16) | context->width );
-	shjpeg_veu_setreg32( data, VEU_VBSSR, 16 );
-	shjpeg_veu_setreg32( data, VEU_VEDWR, pitch );
-	shjpeg_veu_setreg32( data, VEU_VDAYR, phys );
-	shjpeg_veu_setreg32( data, VEU_VDACR, phys + pitch * height );
-	shjpeg_veu_setreg32( data, VEU_VTRCR, vtrcr );
-	
-	shjpeg_veu_setreg32( data, VEU_VRFCR, 0x00000000 );
-	shjpeg_veu_setreg32( data, VEU_VRFSR, 
-			     (context->height << 16) | context->width );
-	
-	shjpeg_veu_setreg32( data, VEU_VENHR, 0x00000000 );
-	shjpeg_veu_setreg32( data, VEU_VFMCR, 0x00000000 );
-	shjpeg_veu_setreg32( data, VEU_VAPCR, 0x00000000 );
-	shjpeg_veu_setreg32( data, VEU_VSWPR, 0x00000007 | vswpout );
-	shjpeg_veu_setreg32( data, VEU_VEIER, 0x00000101 );
+	memset((void*)&veu, 0, sizeof(shjpeg_veu_t));
+
+	/* source */
+	veu.src.width	= context->width;
+	veu.src.height	= context->height;
+	veu.src.pitch	= SHJPEG_JPU_LINEBUFFER_PITCH;
+
+	/* destination */
+	veu.dst.width	= context->width;
+	veu.dst.height	= context->height;
+	veu.dst.pitch	= pitch;
+	veu.dst.yaddr	= phys;
+	veu.dst.caddr	= phys + pitch * height;
+
+	/* transformation parameter */
+	veu.vbssr	= 16;
+	veu.vtrcr	= vtrcr;
+	veu.vswpr	= vswpout | 7;
+
+	/* set VEU */
+	shjpeg_veu_init(data, &veu);
     }
 
     D_DEBUG_AT( SH7722_JPEG, "	 -> starting..." );

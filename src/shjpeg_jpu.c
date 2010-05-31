@@ -38,7 +38,9 @@
 #include "shjpeg_jpu.h"
 
 
-/**********************************************************************************************************************/
+/*
+ * Main JPU control
+ */
 
 int
 shjpeg_run_jpu(shjpeg_context_t	 *context,
@@ -66,7 +68,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 	D_INFO( "START (buffers: %d, flags: 0x%x)", 
 		jpeg->buffers, jpeg->flags );
 	 
-	data->jpeg_line	    	= 0;
+	data->jpeg_line	  	  	= 0;
 	data->jpeg_end			= 0;
 	data->jpeg_error	    	= 0;
 	data->jpeg_encode	    	= encode;
@@ -125,7 +127,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 				    (data->veu_linebuf) ?
 				    shjpeg_jpu_getreg32(data, JPU_JIFESCA2) :
 				    shjpeg_jpu_getreg32(data, JPU_JIFESCA1));
-		shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
+		shjpeg_veu_setreg32(data, VEU_VESTR, 0x001);
 	    }
 	}
 
@@ -149,9 +151,9 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
     for(;;) {
 	int done = 0;
 
-	// wait for IRQ.
+	// wait for IRQ. time out set to 1sec.
 	fds[0].revents = fds[1].revents = 0;
-	ret = poll( fds, 2, 5000 );
+	ret = poll(fds, 2, 1000);
 
 	// timeout or some error.
 	if (ret == 0) {
@@ -245,7 +247,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		    
 		    if (data->jpeg_encode) {
 			data->jpeg_linebufs &= ~(1 << data->jpeg_linebuf);
-			data->jpeg_linebuf = data->jpeg_linebuf ? 0 : 1;
+			data->jpeg_linebuf = (data->jpeg_linebuf + 1) % 2;
 			data->jpeg_reading_line = 0;
 			
 			if (data->jpeg_linebufs) {
@@ -295,7 +297,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		    else {
 			data->jpeg_linebufs |= (1 << data->jpeg_linebuf);
 			
-			data->jpeg_linebuf = data->jpeg_linebuf ? 0 : 1;
+			data->jpeg_linebuf = (data->jpeg_linebuf + 1) % 2;
 			
 			if (data->jpeg_linebufs != 3) {
 			    /* should still be one */
@@ -417,7 +419,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		}
 
 		if (data->veu_running) {
-		    data->veu_linebuf = data->veu_linebuf ? 0 : 1;
+		    data->veu_linebuf = (data->veu_linebuf + 1) % 2;
 		    data->veu_running = 0;
                     
 		    if (!(data->jpeg_linebufs & (1 << data->veu_linebuf))) {
@@ -467,7 +469,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 					JPU_JCCMD_LCMD1 | JPU_JCCMD_LCMD2 );
 		}
                     
-		data->veu_linebuf = data->veu_linebuf ? 0 : 1;
+		data->veu_linebuf = (data->veu_linebuf + 1) % 2;
                     
 		if (data->jpeg_linebufs) {
 		    D_INFO("         -> CONVERT %d", data->veu_linebuf);
