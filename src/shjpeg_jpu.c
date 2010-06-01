@@ -316,7 +316,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 			data->jpeg_line += 16;
 			
 			if (convert && !data->veu_running && 
-			    !data->jpeg_end && !data->jpeg_error) {
+			    !data->jpeg_error) {
 			    D_INFO("		-> CONVERT %d",
 				   data->veu_linebuf );
 			    
