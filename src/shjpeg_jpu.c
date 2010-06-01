@@ -273,6 +273,11 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 				    data->veu_linebuf );
 			    data->veu_running = 1;
 
+			    jpeg->sa_y += jpeg->sa_inc;
+			    jpeg->sa_c += jpeg->sa_inc;
+			    shjpeg_veu_setreg32(data, VEU_VSAYR, jpeg->sa_y);
+			    shjpeg_veu_setreg32(data, VEU_VSACR, jpeg->sa_c);
+
 			    shjpeg_veu_setreg32(data, VEU_VDAYR,
 						(data->veu_linebuf) ?
 						shjpeg_jpu_getreg32(data, 
@@ -285,7 +290,7 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 								    JPU_JIFESCA2):
 						shjpeg_jpu_getreg32(data, 
 								    JPU_JIFESCA1));
-			    shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
+			    shjpeg_veu_setreg32(data, VEU_VESTR, 0x1);
 			    
 			    D_INFO( "		-> SWAP, "
 				    "VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)",
