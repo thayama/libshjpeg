@@ -1,7 +1,7 @@
 /*
  * libshjpeg: A library for controlling SH-Mobile JPEG hardware codec
  *
- * Copyright (C) 2009 IGEL Co.,Ltd.
+ * Copyright (C) 2009,2010 IGEL Co.,Ltd.
  * Copyright (C) 2008,2009 Renesas Technology Corp.
  * Copyright (C) 2008 Denis Oliver Kropp
  *
@@ -36,6 +36,7 @@
 #include "shjpeg_internal.h"
 #include "shjpeg_regs.h"
 #include "shjpeg_jpu.h"
+#include "shjpeg_veu.h"
 
 
 /*
@@ -117,17 +118,8 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		// XXX : better way to check JPU start?
 		usleep(1000);
 
-		data->veu_running = 1;
-
-		shjpeg_veu_setreg32(data, VEU_VDAYR,
-				    (data->veu_linebuf) ?
-				    shjpeg_jpu_getreg32(data, JPU_JIFESYA2) :
-				    shjpeg_jpu_getreg32(data, JPU_JIFESYA1));
-		shjpeg_veu_setreg32(data, VEU_VDACR,
-				    (data->veu_linebuf) ?
-				    shjpeg_jpu_getreg32(data, JPU_JIFESCA2) :
-				    shjpeg_jpu_getreg32(data, JPU_JIFESCA1));
-		shjpeg_veu_setreg32(data, VEU_VESTR, 0x001);
+		shjpeg_veu_set_dst_jpu(data);
+		shjpeg_veu_start(data, 0);
 	    }
 	}
 
@@ -264,39 +256,15 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 			data->jpeg_line += 16;
 
 			if (convert && !data->veu_running && !data->jpeg_end) {
-#ifdef SHJPEG_DEBUG
-			    u32 vdayr = shjpeg_veu_getreg32(data, VEU_VDAYR);
-			    u32 vdacr = shjpeg_veu_getreg32(data, VEU_VDACR);
-#endif
-			    
 			    D_INFO( "		-> CONVERT %d", 
 				    data->veu_linebuf );
-			    data->veu_running = 1;
 
 			    jpeg->sa_y += jpeg->sa_inc;
 			    jpeg->sa_c += jpeg->sa_inc;
-			    shjpeg_veu_setreg32(data, VEU_VSAYR, jpeg->sa_y);
-			    shjpeg_veu_setreg32(data, VEU_VSACR, jpeg->sa_c);
 
-			    shjpeg_veu_setreg32(data, VEU_VDAYR,
-						(data->veu_linebuf) ?
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFESYA2):
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFESYA1));
-			    shjpeg_veu_setreg32(data, VEU_VDACR,
-						(data->veu_linebuf) ?
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFESCA2):
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFESCA1));
-			    shjpeg_veu_setreg32(data, VEU_VESTR, 0x1);
-			    
-			    D_INFO( "		-> SWAP, "
-				    "VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)",
-				    shjpeg_veu_getreg32( data, VEU_VSAYR ), vdayr,
-				    shjpeg_veu_getreg32( data, VEU_VDAYR ), vdacr,
-				    shjpeg_veu_getreg32( data, VEU_VDACR ) );
+			    shjpeg_veu_set_src(data, jpeg->sa_y, jpeg->sa_c);
+			    shjpeg_veu_set_dst_jpu(data);
+			    shjpeg_veu_start(data, 0);
 			}
 		    }
 		    else {
@@ -325,21 +293,8 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 			    D_INFO("		-> CONVERT %d",
 				   data->veu_linebuf );
 			    
-			    data->veu_running = 1;
-			    
-			    shjpeg_veu_setreg32(data, VEU_VSAYR,
-						(data->veu_linebuf) ?
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFDDYA2):
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFDDYA1));
-			    shjpeg_veu_setreg32(data, VEU_VSACR,
-						(data->veu_linebuf) ?
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFDDCA2):
-						shjpeg_jpu_getreg32(data, 
-								    JPU_JIFDDCA1));
-			    shjpeg_veu_setreg32(data, VEU_VESTR, 0x101);
+			    shjpeg_veu_set_src_jpu(data);
+			    shjpeg_veu_start(data, 1);
 			}
 		    }
 		}
@@ -410,8 +365,8 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		    (data->jpeg_line + 16 >= data->jpeg_height)) {
 		    D_INFO("         -> STOP VEU");
                          
-		    data->veu_running = 0;
 		    data->jpeg_linebufs = 0;
+		    shjpeg_veu_stop(data);
 		}
                     
 		data->jpeg_linebufs |= 1 << data->veu_linebuf;
@@ -425,37 +380,17 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 
 		if (data->veu_running) {
 		    data->veu_linebuf = (data->veu_linebuf + 1) % 2;
-		    data->veu_running = 0;
+		    shjpeg_veu_stop(data);
                     
 		    if (!(data->jpeg_linebufs & (1 << data->veu_linebuf))) {
-#ifdef SHJPEG_DEBUG
-			u32 vdayr, vdacr;
-                              
-			vdayr = shjpeg_veu_getreg32(data, VEU_VDAYR);
-			vdacr = shjpeg_veu_getreg32(data, VEU_VDACR);
-#endif
-                              
 			D_INFO("         -> CONVERT %d", data->veu_linebuf);
-                              
-			data->veu_running = 1;   /* should still be one */
+
 			jpeg->sa_y += jpeg->sa_inc;
 			jpeg->sa_c += jpeg->sa_inc;
-			shjpeg_veu_setreg32(data, VEU_VSAYR, jpeg->sa_y);
-			shjpeg_veu_setreg32(data, VEU_VSACR, jpeg->sa_c);
-			shjpeg_veu_setreg32(data, VEU_VDAYR,
-					    (data->veu_linebuf) ? 
-					    shjpeg_jpu_getreg32(data, JPU_JIFESYA2) : 
-					    shjpeg_jpu_getreg32(data, JPU_JIFESYA1));
-			shjpeg_veu_setreg32(data, VEU_VDACR,
-					    (data->veu_linebuf) ? 
-					    shjpeg_jpu_getreg32(data, JPU_JIFESCA2) : 
-					    shjpeg_jpu_getreg32(data, JPU_JIFESCA1));
-			shjpeg_veu_setreg32(data, VEU_VESTR, 0x1);
-			
-			D_INFO("         -> SWAP, VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)", 
-			       shjpeg_veu_getreg32(data, VEU_VSAYR), vdayr, 
-			       shjpeg_veu_getreg32(data, VEU_VDAYR), vdacr, 
-			       shjpeg_veu_getreg32(data, VEU_VDACR));
+
+			shjpeg_veu_set_src(data, jpeg->sa_y, jpeg->sa_c);
+			shjpeg_veu_set_dst_jpu(data);
+			shjpeg_veu_start(data, 0);
 		    }
 
 		} 
@@ -479,24 +414,13 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 		if (data->jpeg_linebufs) {
 		    D_INFO("         -> CONVERT %d", data->veu_linebuf);
                          
-		    data->veu_running = 1;   /* should still be one */
-
-		    // VEU_VSAYR = veu_linebuf ? JPU_JIFDDYA2 : JPU_JIFDDYA1;
-		    shjpeg_veu_setreg32(data, VEU_VSAYR,
-					data->veu_linebuf ? 
-					shjpeg_jpu_getreg32(data, JPU_JIFDDYA2) : 
-					shjpeg_jpu_getreg32(data, JPU_JIFDDYA1));
-		    // VEU_VSACR = veu_linebuf ? JPU_JIFDDCA2 : JPU_JIFDDCA1;
-		    shjpeg_veu_setreg32(data, VEU_VSACR,
-					data->veu_linebuf ? 
-					shjpeg_jpu_getreg32(data, JPU_JIFDDCA2) : 
-					shjpeg_jpu_getreg32(data, JPU_JIFDDCA1));
-		    shjpeg_veu_setreg32(data, VEU_VESTR, 0x0101);
+		    shjpeg_veu_set_src_jpu(data);
+		    shjpeg_veu_start(data, 1);
 		} else {
 		    if (data->jpeg_end)
 			done = 1;
 
-		    data->veu_running = 0;
+		    shjpeg_veu_stop(data);
 		}
 	    }
 

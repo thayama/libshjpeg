@@ -28,6 +28,10 @@
 #include "shjpeg_jpu.h"
 #include "shjpeg_veu.h"
 
+/*
+ * Initialize VEU
+ */
+
 int shjpeg_veu_init(shjpeg_internal_t *data, shjpeg_veu_t *veu)
 {
     /* 
@@ -117,4 +121,77 @@ int shjpeg_veu_init(shjpeg_internal_t *data, shjpeg_veu_t *veu)
     shjpeg_veu_setreg32(data, VEU_VEIER, 0x00000101);
 
     return 0 ;
+}
+
+/*
+ * Set JPU as the destination of VEU
+ */
+
+void shjpeg_veu_set_dst_jpu(shjpeg_internal_t *data)
+{
+#ifdef SHJPEG_DEBUG
+    u32 vdayr = shjpeg_veu_getreg32(data, VEU_VDAYR);
+    u32 vdacr = shjpeg_veu_getreg32(data, VEU_VDACR);
+#endif
+			    
+    shjpeg_veu_setreg32(data, VEU_VDAYR,
+			(data->veu_linebuf) ?
+			shjpeg_jpu_getreg32(data, JPU_JIFESYA2) :
+			shjpeg_jpu_getreg32(data, JPU_JIFESYA1));
+    shjpeg_veu_setreg32(data, VEU_VDACR,
+			(data->veu_linebuf) ?
+			shjpeg_jpu_getreg32(data, JPU_JIFESCA2) :
+			shjpeg_jpu_getreg32(data, JPU_JIFESCA1));
+    
+#ifdef SHJPEG_DEBUG
+    D_INFO("		-> SWAP, "
+	   "VEU_VSAYR = %08x (%08x->%08x, %08x->%08x)",
+	   shjpeg_veu_getreg32(data, VEU_VSAYR), vdayr,
+	   shjpeg_veu_getreg32(data, VEU_VDAYR), vdacr,
+	   shjpeg_veu_getreg32(data, VEU_VDACR));
+#endif
+}
+
+/*
+ * Set JPU as the source of VEU
+ */
+
+void shjpeg_veu_set_src_jpu(shjpeg_internal_t *data)
+{
+    shjpeg_veu_setreg32(data, VEU_VSAYR,
+			(data->veu_linebuf) ?
+			shjpeg_jpu_getreg32(data, JPU_JIFDDYA2) :
+			shjpeg_jpu_getreg32(data, JPU_JIFDDYA1));
+    shjpeg_veu_setreg32(data, VEU_VSACR,
+			(data->veu_linebuf) ?
+			shjpeg_jpu_getreg32(data, JPU_JIFDDCA2) :
+			shjpeg_jpu_getreg32(data, JPU_JIFDDCA1));
+}
+
+/*
+ * Set VEU Source to the given address
+ */
+
+void shjpeg_veu_set_src(shjpeg_internal_t *data, u32 src_y, u32 src_c)
+{
+    shjpeg_veu_setreg32(data, VEU_VSAYR, src_y);
+    shjpeg_veu_setreg32(data, VEU_VSACR, src_c);
+}
+
+/*
+ * Start VEU
+ */
+
+void shjpeg_veu_start(shjpeg_internal_t *data, int bundle_mode)
+{
+    data->veu_running = 1;
+    shjpeg_veu_setreg32(data, VEU_VESTR, (bundle_mode) ? 0x101 : 0x001);
+}
+
+/*
+ * Stop VEU
+ */
+void shjpeg_veu_stop(shjpeg_internal_t *data)
+{
+    data->veu_running = 0;
 }

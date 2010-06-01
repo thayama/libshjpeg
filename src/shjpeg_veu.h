@@ -45,7 +45,41 @@ typedef struct {
     u32			vswpr;		/* swap register */
 } shjpeg_veu_t;
 
+
+static inline u32
+shjpeg_veu_getreg32(shjpeg_internal_t *data,
+		    u32                address)
+{
+    D_ASSERT( address < data->veu_size );
+    
+    return *(volatile u32*)(data->veu_base + address);
+}
+
+static inline void
+shjpeg_veu_setreg32(shjpeg_internal_t	*data,
+		    u32			 address,
+		    u32			 value)
+{
+    D_ASSERT( address < data->veu_size );
+    
+    *(volatile u32*)(data->veu_base + address) = value;
+
+#ifdef SHJPEG_DEBUG
+    {
+	shjpeg_context_t *context = data->context;
+	D_INFO("%s: written %08x(%08x) at %s(%08x)",
+	       __FUNCTION__, value, shjpeg_veu_getreg32(data, address),
+	       veu_reg_str[address >> 2], address );
+    }
+#endif
+}
+
 /* external function */
 int shjpeg_veu_init(shjpeg_internal_t *data, shjpeg_veu_t *veu);
+void shjpeg_veu_set_dst_jpu(shjpeg_internal_t*);
+void shjpeg_veu_set_src_jpu(shjpeg_internal_t*);
+void shjpeg_veu_set_src(shjpeg_internal_t*, u32, u32);
+void shjpeg_veu_start(shjpeg_internal_t*, int);
+void shjpeg_veu_stop(shjpeg_internal_t*);
 
 #endif /* !__shjpeg_jpu_h__ */

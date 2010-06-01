@@ -79,43 +79,19 @@ shjpeg_jpu_setreg32(shjpeg_internal_t *data,
 		    u32		       address,
 		    u32		       value)
 {
-#ifdef SHJPEG_DEBUG
-    shjpeg_context_t *context = data->context;
-#endif
     D_ASSERT( address < data->jpu_size );
 
     *(volatile u32*)(data->jpu_base + address) = value;
 
-    if (address <= JPU_JIFDDCA2)
-    D_INFO("%s: written %08x(%08x) at %s(%08x)",
-	   __FUNCTION__, value, shjpeg_jpu_getreg32(data, address),
-	   jpu_reg_str[address >> 2], address );
-}
-
-static inline u32
-shjpeg_veu_getreg32(shjpeg_internal_t *data,
-		    u32                address)
-{
-    D_ASSERT( address < data->veu_size );
-    
-    return *(volatile u32*)(data->veu_base + address);
-}
-
-static inline void
-shjpeg_veu_setreg32(shjpeg_internal_t	*data,
-		    u32			 address,
-		    u32			 value)
-{
 #ifdef SHJPEG_DEBUG
-    shjpeg_context_t *context = data->context;
+    {
+	shjpeg_context_t *context = data->context;
+	if (address <= JPU_JIFDDCA2)
+	    D_INFO("%s: written %08x(%08x) at %s(%08x)",
+		   __FUNCTION__, value, shjpeg_jpu_getreg32(data, address),
+		   jpu_reg_str[address >> 2], address );
+    }
 #endif
-    D_ASSERT( address < data->veu_size );
-    
-    *(volatile u32*)(data->veu_base + address) = value;
-
-    D_INFO("%s: written %08x(%08x) at %s(%08x)",
-	   __FUNCTION__, value, shjpeg_veu_getreg32(data, address),
-	   veu_reg_str[address >> 2], address );
 }
 
 /* external function */
