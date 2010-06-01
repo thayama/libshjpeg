@@ -109,15 +109,12 @@ shjpeg_run_jpu(shjpeg_context_t	 *context,
 	return -1;
     }
 
-    if (encode) {
+    if (data->jpeg_encode) {
 	if (convert) {
 	    if (data->jpeg_linebufs != 3 && !data->veu_running) {
 		D_INFO( "libshjpeg: '-> "
 			"convert start (buffers: %d, veu linebuf: %d)",
 			data->jpeg_buffers, data->veu_linebuf );
-		// XXX : better way to check JPU start?
-		usleep(1000);
-
 		shjpeg_veu_set_dst_jpu(data);
 		shjpeg_veu_start(data, 0);
 	    }
