@@ -95,7 +95,11 @@ shjpeg_jpu_setreg32(shjpeg_internal_t *data,
 }
 
 /* external function */
-int shjpeg_run_jpu(shjpeg_context_t *context, shjpeg_internal_t *data,
+void shjpeg_jpu_reset(shjpeg_internal_t *data);
+int shjpeg_jpu_run(shjpeg_context_t *context, shjpeg_internal_t *data,
 		   shjpeg_jpu_t *jpeg);
+
+void shjpeg_jpu_init_quantization_table(shjpeg_internal_t *data);
+void shjpeg_jpu_init_huffman_table(shjpeg_internal_t *data);
 
 #endif /* !__shjpeg_jpu_h__ */

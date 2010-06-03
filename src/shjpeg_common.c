@@ -231,6 +231,35 @@ uio_shutdown(shjpeg_internal_t*data)
 }
 
 /*
+ * clean UIO interrupt
+ */
+static int
+uio_clear_irq(shjpeg_context_t *context, int fd, const char *name)
+{
+    int n = 1, rc = 0;
+
+    if (lockf(fd, F_LOCK, 0) < 0) {
+    	D_PERROR("libshjpeg: Couldn't lock %s UIO.", name);
+	return -1;
+    } else {
+	/* release irq just in case */
+	if (write(fd, &n, sizeof(n)) < sizeof(n)) {
+	    D_PERROR("libshjpeg: unblock %s IRQ failed.", name);
+	    rc = -1;
+	    goto quit;
+	}
+
+    quit:
+	if (lockf(fd, F_ULOCK, 0) < 0) {
+	    D_PERROR("libshjpeg: Couldn't unlock %s UIO.", name);
+	    return rc;
+	}
+    }
+
+    return rc;
+}
+
+/*
  * initialize UIO
  */
 static int
@@ -327,45 +356,12 @@ uio_init(shjpeg_context_t *context, shjpeg_internal_t *data)
 
     /*
      * XXX: just in case, for the pending IRQ from the previous user
-     * we release must unblock interrupt. unless we won't get IRQ.
+     * we must release to unblock interrupt. otherwise we won't get IRQ.
      */
-    if (lockf(data->jpu_uio_fd, F_LOCK, 0) < 0) {
-    	D_PERROR("libshjpeg: Couldn't lock JPU UIO.");
+    if (uio_clear_irq(context, data->jpu_uio_fd, "JPU") < 0)
 	goto error;
-    } else {
-	int n = 1;
-
-	if (write(data->jpu_uio_fd, &n, sizeof(n)) < sizeof(n)) {
-	    D_PERROR("libshjpeg: unblock JPU IRQ failed.");
-	    if (lockf(data->jpu_uio_fd, F_ULOCK, 0) < 0)
-		D_PERROR("libshjpeg: may have failed to unlock JPU.");
-	    goto error;
-	}
-
-	if (lockf(data->jpu_uio_fd, F_ULOCK, 0) < 0) {
-	    D_PERROR("libshjpeg: Couldn't unlock JPU UIO.");
-	    goto error;
-	}
-    }
-
-    if (lockf(data->veu_uio_fd, F_LOCK, 0) < 0) {
-    	D_PERROR("libshjpeg: Couldn't lock VEU UIO.");
+    if (uio_clear_irq(context, data->veu_uio_fd, "VEU") < 0)
 	goto error;
-    } else {
-	int n = 1;
-
-	if (write(data->veu_uio_fd, &n, sizeof(n)) < sizeof(n)) {
-	    D_PERROR("libshjpeg: unblock VEU IRQ failed.");
-	    if (lockf(data->veu_uio_fd, F_ULOCK, 0) < 0)
-		D_PERROR("libshjpeg: may have failed to unlock VEU.");
-	    goto error;
-	}
-
-	if (lockf(data->veu_uio_fd, F_ULOCK, 0) < 0) {
-	    D_PERROR("libshjpeg: Couldn't unlock VEU UIO.");
-	    goto error;
-	}
-    }
 
     return 0;
 

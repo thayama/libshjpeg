@@ -79,13 +79,15 @@ typedef struct {
     int                  jpeg_encode;
     int                  jpeg_reading;
     int                  jpeg_writing;
-    int                  jpeg_reading_line;
-    int                  jpeg_writing_line;
     int                  jpeg_height;
     int                  jpeg_end;
     uint32_t		 jpeg_linebufs;
     int                  jpeg_linebuf;
     int                  jpeg_line;
+
+    int                  jpu_running;
+    int			 jpu_lb_first_irq;
+
     int                  veu_linebuf;
     int                  veu_running;
 

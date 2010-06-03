@@ -63,28 +63,6 @@ decode_hw(shjpeg_internal_t	*data,
 	       __FUNCTION__,
 	       data, phys, pitch, context->width, context->height, format);
 
-    /*
-     * Kernel based state machine
-     *
-     * Execution enters the kernel and only returns to user space for
-     *	 - end of decoding
-     *	 - error in decoding
-     *	 - reload requested
-     *
-     * TODO
-     * - finish clipping (maybe not all is possible without tricky code)
-     * - modify state machine to be used by Construct(), GetSurfaceDescription() and RenderTo() to avoid redundancy
-     * - check return code and length from GetData()
-     */
-
-
-    /*
-      if (format != DSPF_NV12 && format != DSPF_NV16) {
-      D_UNIMPLEMENTED();
-      return -1;
-      }
-    */
-
     /* Init VEU transformation control (format conversion). */
     if (!context->mode420)
 	vtrcr |= (1 << 14);
@@ -169,7 +147,8 @@ decode_hw(shjpeg_internal_t	*data,
     }
 
     /* Program JPU from RESET. */
-    shjpeg_jpu_setreg32(data, JPU_JCCMD, JPU_JCCMD_RESET );
+    shjpeg_jpu_reset(data);
+
     shjpeg_jpu_setreg32(data, JPU_JCMOD, 
 			JPU_JCMOD_INPUT_CTRL | JPU_JCMOD_DSP_DECODE );
     shjpeg_jpu_setreg32(data, JPU_JIFCNT, JPU_JIFCNT_VJSEL_JPU );
@@ -237,7 +216,7 @@ decode_hw(shjpeg_internal_t	*data,
 	veu.dst.caddr	= phys + pitch * height;
 
 	/* transformation parameter */
-	veu.vbssr	= 16;
+	veu.vbssr	= SHJPEG_JPU_LINEBUFFER_HEIGHT;
 	veu.vtrcr	= vtrcr;
 	veu.vswpr	= vswpout | 7;
 
@@ -252,7 +231,7 @@ decode_hw(shjpeg_internal_t	*data,
 	int i;
 
 	/* Run the state machine. */
-	if ( shjpeg_run_jpu(context, data, &jpeg) < 0 ) {
+	if (shjpeg_jpu_run(context, data, &jpeg) < 0) {
 	    ret = -1;
 	    D_PERROR( "libshjpeg: running JPU failed!\n" );
 	    break;

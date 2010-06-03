@@ -39,14 +39,9 @@ int shjpeg_veu_init(shjpeg_internal_t *data, shjpeg_veu_t *veu)
      */
 
     /*
-     * 0. Generic setting
+     * 0. Reset
      */
 
-    /* stop VEU - make sure VEU is stopped */
-    shjpeg_veu_setreg32(data, VEU_VESTR, 0x00000000);
-    while(shjpeg_veu_getreg32(data, VEU_VESTR))
-	usleep(1);
-    
     /* reset VEU module */
     shjpeg_veu_setreg32(data, VEU_VBSRR, 0x00000100);
 
@@ -64,7 +59,7 @@ int shjpeg_veu_init(shjpeg_internal_t *data, shjpeg_veu_t *veu)
     /* set source Y address */
     shjpeg_veu_setreg32(data, VEU_VSAYR, veu->src.yaddr);
 
-    /* set source address */
+    /* set source C address */
     shjpeg_veu_setreg32(data, VEU_VSACR, veu->src.caddr);
 
     /* set lines to read during bundle mode */

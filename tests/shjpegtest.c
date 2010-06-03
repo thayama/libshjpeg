@@ -112,8 +112,6 @@ void write_bmp(const char *filename, int bpp,
     memset((void*)&bmp_header, 0, sizeof(bmp_header_t));
     stride = (((width * bpp) + 0x1f) & ~0x1f) >> 3;
     raw_size = stride * height;
-printf("width=%d, stride=%d, pitch=%d, height=%d, size=%d(%x)\n",
-	width, stride, pitch, height, raw_size, raw_size);
     bmp_header.bmp_size    = 2 + sizeof(bmp_header_t) + raw_size;
     bmp_header.bmp_offset  = 2 + sizeof(bmp_header_t);
     bmp_header.header_size = sizeof(bmp_header_t) - 12;
@@ -311,6 +309,7 @@ main(int argc, char *argv[])
     int			   bpp = 24;
     int			   disable_libjpeg = 0;
     int			   quiet = 0;
+    int			   error = 0;
 
     argv0 = argv[0];
 
@@ -454,7 +453,7 @@ main(int argc, char *argv[])
     if (shjpeg_decode_run(context, format, phys,
 			  context->width, context->height, pitch) < 0) {
 	fprintf(stderr, "shjpeg_deocde_run() failed\n");
-	return 1;
+	error = 1;
     }
 
     if (!quiet) {
@@ -471,7 +470,7 @@ main(int argc, char *argv[])
 	if (!quiet) {
 	    printf("jpu uio: JPEG Buffer - 0x%08lx(%p) - size = %08x\n",
 		   jpeg_phys, jpeg_virt, jpeg_size );
-	   }
+	}
     } else {
    	jpeg_phys = phys; 
     }
@@ -488,6 +487,11 @@ main(int argc, char *argv[])
     }
 
     close(fd);
+
+    /* we dump image even we we encountered error - for debug */
+    if (error) {
+	return 1;
+    }
 
     /* now prep to re-encode */
     if ((fd = open(output, O_RDWR | O_CREAT, 0644)) < 0) {
